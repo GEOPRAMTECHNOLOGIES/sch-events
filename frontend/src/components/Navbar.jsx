@@ -4,7 +4,7 @@ import { useSiteSettings } from "../context/SiteSettingsContext";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
-  const { settings } = useSiteSettings();
+  const settings = useSiteSettings();
   const navigate = useNavigate();
 
   return (

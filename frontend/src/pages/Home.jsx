@@ -5,10 +5,10 @@ import TicketStub from "../components/TicketStub";
 import { useSiteSettings } from "../context/SiteSettingsContext";
 
 export default function Home() {
+  const settings = useSiteSettings();
   const [events, setEvents] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-  const { settings } = useSiteSettings();
 
   useEffect(() => {
     api
@@ -25,9 +25,7 @@ export default function Home() {
           <h1 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(32px,5vw,52px)", margin: "16px 0 12px", maxWidth: 640 }}>
             {settings.heroTitle}
           </h1>
-          <p style={{ color: "#c7cee0", maxWidth: 520, fontSize: 16 }}>
-            {settings.heroSubtitle}
-          </p>
+          <p style={{ color: "#c7cee0", maxWidth: 520, fontSize: 16 }}>{settings.heroSubtitle}</p>
           <div style={{ marginTop: 28, maxWidth: 420 }}>
             <input
               placeholder="Search events, e.g. 'Freshers Night'"
@@ -47,7 +45,7 @@ export default function Home() {
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 20 }}>
             {events.map((ev) => (
-              <Link key={ev._id} to={`/event/${ev.slug || ev._id}`}>
+              <Link key={ev._id} to={`/events/${ev._id}`}>
                 <TicketStub
                   event={ev}
                   rightSlot={

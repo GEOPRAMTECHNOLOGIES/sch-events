@@ -1,34 +1,28 @@
 import { useEffect, useState } from "react";
 import dayjs from "dayjs";
 import { adminApi } from "../../api/client";
-import { useAdminAuth } from "../../context/AdminAuthContext";
 
 const emptyForm = {
   title: "",
-  slug: "",
   description: "",
   category: "General",
   venue: "",
   campus: "",
   startsAt: "",
-  endsAt: "",
-  coverImageUrl: "",
-  gallery: [],
-  externalLink: "",
-  themeColor: "",
   isPublished: true,
   tiers: [{ name: "Regular", price: 0, quantityTotal: 100 }],
+  images: [],
+  externalLink: "",
+  themeColor: "",
 };
 
 export default function Events() {
-  const { admin } = useAdminAuth();
-  const isManager = admin?.role === "manager";
   const [events, setEvents] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState("");
-  const [copiedId, setCopiedId] = useState(null);
+  const [managerLinks, setManagerLinks] = useState({}); // eventId -> full link, shown after generating
 
   function load() {
     adminApi.get("/events/admin/all").then((res) => setEvents(res.data.events));
@@ -44,19 +38,16 @@ export default function Events() {
   function startEdit(ev) {
     setForm({
       title: ev.title,
-      slug: ev.slug || "",
       description: ev.description,
       category: ev.category,
       venue: ev.venue,
       campus: ev.campus,
       startsAt: dayjs(ev.startsAt).format("YYYY-MM-DDTHH:mm"),
-      endsAt: ev.endsAt ? dayjs(ev.endsAt).format("YYYY-MM-DDTHH:mm") : "",
-      coverImageUrl: ev.coverImageUrl || "",
-      gallery: (ev.gallery || []).map((g) => ({ url: g.url, caption: g.caption || "" })),
-      externalLink: ev.externalLink || "",
-      themeColor: ev.themeColor || "",
       isPublished: ev.isPublished,
       tiers: ev.tiers.map((t) => ({ name: t.name, price: t.price, quantityTotal: t.quantityTotal })),
+      images: ev.images || [],
+      externalLink: ev.externalLink || "",
+      themeColor: ev.themeColor || "",
     });
     setEditingId(ev._id);
     setShowForm(true);
@@ -69,37 +60,50 @@ export default function Events() {
       return { ...f, tiers };
     });
   }
+
   function addTier() {
     setForm((f) => ({ ...f, tiers: [...f.tiers, { name: "", price: 0, quantityTotal: 50 }] }));
   }
+
   function removeTier(idx) {
     setForm((f) => ({ ...f, tiers: f.tiers.filter((_, i) => i !== idx) }));
   }
 
-  // Responsive image gallery - admins can attach more than one image per event.
-  function updateGalleryImage(idx, field, value) {
+  function updateImage(idx, value) {
     setForm((f) => {
-      const gallery = [...f.gallery];
-      gallery[idx] = { ...gallery[idx], [field]: value };
-      return { ...f, gallery };
+      const images = [...f.images];
+      images[idx] = value;
+      return { ...f, images };
     });
   }
-  function addGalleryImage() {
-    setForm((f) => ({ ...f, gallery: [...f.gallery, { url: "", caption: "" }] }));
+
+  function addImage() {
+    setForm((f) => ({ ...f, images: [...f.images, ""] }));
   }
-  function removeGalleryImage(idx) {
-    setForm((f) => ({ ...f, gallery: f.gallery.filter((_, i) => i !== idx) }));
+
+  function removeImage(idx) {
+    setForm((f) => ({ ...f, images: f.images.filter((_, i) => i !== idx) }));
+  }
+
+  async function handleGetManagerLink(eventId) {
+    const res = await adminApi.post(`/events/admin/${eventId}/manager-link`);
+    const link = `${window.location.origin}/#/manage/${res.data.managerToken}`;
+    setManagerLinks((m) => ({ ...m, [eventId]: link }));
+    try {
+      await navigator.clipboard.writeText(link);
+    } catch {
+      // clipboard access can fail (e.g. non-HTTPS); the link is still shown on screen either way
+    }
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
     try {
-      const payload = { ...form, gallery: form.gallery.filter((g) => g.url.trim()) };
       if (editingId) {
-        await adminApi.put(`/events/admin/${editingId}`, payload);
+        await adminApi.put(`/events/admin/${editingId}`, form);
       } else {
-        await adminApi.post("/events/admin", payload);
+        await adminApi.post("/events/admin", form);
       }
       setShowForm(false);
       load();
@@ -114,25 +118,11 @@ export default function Events() {
     load();
   }
 
-  async function handleDismissReminder(id) {
-    await adminApi.post(`/events/admin/${id}/dismiss-reminder`);
-    load();
-  }
-
-  function shareLink(ev) {
-    return `${window.location.origin}${window.location.pathname}#/event/${ev.slug}`;
-  }
-  function copyLink(ev) {
-    navigator.clipboard.writeText(shareLink(ev));
-    setCopiedId(ev._id);
-    setTimeout(() => setCopiedId(null), 1500);
-  }
-
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-        <h1 style={{ fontFamily: "var(--font-display)", fontSize: 22 }}>{isManager ? "My event" : "Events"}</h1>
-        {!isManager && <button className="btn btn-gold" onClick={startCreate}>+ New event</button>}
+        <h1 style={{ fontFamily: "var(--font-display)", fontSize: 22 }}>Events</h1>
+        <button className="btn btn-gold" onClick={startCreate}>+ New event</button>
       </div>
 
       {showForm && (
@@ -141,15 +131,6 @@ export default function Events() {
             <div className="field">
               <label>Title</label>
               <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-            </div>
-            <div className="field">
-              <label>Shareable link slug</label>
-              <input
-                placeholder="auto-generated from title if left blank"
-                value={form.slug}
-                onChange={(e) => setForm({ ...form, slug: e.target.value })}
-              />
-              <p className="help-text">e.g. #/event/{form.slug || "freshers-night"}</p>
             </div>
             <div className="field">
               <label>Category</label>
@@ -168,53 +149,47 @@ export default function Events() {
               <input type="datetime-local" required value={form.startsAt} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} />
             </div>
             <div className="field">
-              <label>Ends at</label>
-              <input type="datetime-local" value={form.endsAt} onChange={(e) => setForm({ ...form, endsAt: e.target.value })} />
-              <p className="help-text">Used for the "delete old events" reminder a month after the event ends.</p>
-            </div>
-            <div className="field">
               <label>Published</label>
               <select value={form.isPublished} onChange={(e) => setForm({ ...form, isPublished: e.target.value === "true" })}>
                 <option value="true">Yes</option>
                 <option value="false">No (draft)</option>
               </select>
             </div>
-            <div className="field">
-              <label>Cover image URL</label>
-              <input placeholder="https://..." value={form.coverImageUrl} onChange={(e) => setForm({ ...form, coverImageUrl: e.target.value })} />
-            </div>
-            <div className="field">
-              <label>External link (optional)</label>
-              <input
-                placeholder="https://... sponsor page, livestream, group chat, etc."
-                value={form.externalLink}
-                onChange={(e) => setForm({ ...form, externalLink: e.target.value })}
-              />
-            </div>
-            <div className="field">
-              <label>Event color theme (optional)</label>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input type="color" style={{ width: 48, padding: 2 }} value={form.themeColor || "#0b4f2c"} onChange={(e) => setForm({ ...form, themeColor: e.target.value })} />
-                <input placeholder="#0B4F2C" value={form.themeColor} onChange={(e) => setForm({ ...form, themeColor: e.target.value })} />
-              </div>
-              <p className="help-text">Leave blank to use the site's default theme.</p>
-            </div>
           </div>
-
           <div className="field">
             <label>Description</label>
             <textarea rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
           </div>
 
-          <label>Gallery images (responsive, more than one allowed)</label>
-          {form.gallery.map((g, i) => (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 1fr auto", gap: 8, marginBottom: 8 }}>
-              <input placeholder="Image URL" value={g.url} onChange={(e) => updateGalleryImage(i, "url", e.target.value)} />
-              <input placeholder="Caption (optional)" value={g.caption} onChange={(e) => updateGalleryImage(i, "caption", e.target.value)} />
-              <button type="button" className="btn btn-ghost" onClick={() => removeGalleryImage(i)}>Remove</button>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div className="field">
+              <label>External link (optional)</label>
+              <input placeholder="https://..." value={form.externalLink} onChange={(e) => setForm({ ...form, externalLink: e.target.value })} />
+            </div>
+            <div className="field">
+              <label>Event accent color (optional)</label>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  type="color"
+                  style={{ width: 44, padding: 2 }}
+                  value={form.themeColor || "#1b2a4a"}
+                  onChange={(e) => setForm({ ...form, themeColor: e.target.value })}
+                />
+                <button type="button" className="btn btn-ghost" style={{ padding: "6px 10px", fontSize: 12 }} onClick={() => setForm({ ...form, themeColor: "" })}>
+                  Use site default
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <label>Gallery images (URLs)</label>
+          {form.images.map((src, i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, marginBottom: 8 }}>
+              <input placeholder="https://example.com/photo.jpg" value={src} onChange={(e) => updateImage(i, e.target.value)} />
+              <button type="button" className="btn btn-ghost" onClick={() => removeImage(i)}>Remove</button>
             </div>
           ))}
-          <button type="button" className="btn btn-ghost" onClick={addGalleryImage} style={{ marginBottom: 16 }}>+ Add gallery image</button>
+          <button type="button" className="btn btn-ghost" onClick={addImage} style={{ marginBottom: 16 }}>+ Add image URL</button>
 
           <label>Ticket tiers</label>
           {form.tiers.map((t, i) => (
@@ -235,11 +210,20 @@ export default function Events() {
         </form>
       )}
 
+      {events.some((ev) => ev.isStale) && (
+        <div className="card" style={{ padding: "14px 18px", marginBottom: 16, borderLeft: "4px solid var(--stamp)" }}>
+          <strong style={{ fontSize: 13 }}>Clean-up reminder:</strong>{" "}
+          <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>
+            {events.filter((ev) => ev.isStale).map((ev) => ev.title).join(", ")} ended over a month ago. Delete them below if you no longer need the data, or leave them &mdash; nothing is removed automatically.
+          </span>
+        </div>
+      )}
+
       <div className="card" style={{ overflow: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr style={{ textAlign: "left", background: "var(--paper-dim)" }}>
-              {["Title", "Venue", "Starts", "Tickets sold", "Revenue", "Published", "Shareable link", ""].map((h) => (
+              {["Title", "Venue", "Starts", "Tickets sold", "Revenue", "Published", "Manager link", ""].map((h) => (
                 <th key={h} style={{ padding: "10px 14px" }}>{h}</th>
               ))}
             </tr>
@@ -248,35 +232,25 @@ export default function Events() {
             {events.map((ev) => (
               <tr key={ev._id} style={{ borderTop: "1px solid var(--stub-line)" }}>
                 <td style={{ padding: "10px 14px" }}>
-                  {ev.title}
-                  {ev.needsCleanupReminder && (
-                    <div style={{ marginTop: 4 }}>
-                      <span className="pill pill-danger">Over a month old &mdash; consider deleting</span>{" "}
-                      {!isManager && (
-                        <button className="btn btn-ghost" style={{ padding: "2px 8px", fontSize: 11 }} onClick={() => handleDismissReminder(ev._id)}>
-                          Keep it
-                        </button>
-                      )}
-                    </div>
-                  )}
+                  {ev.title} {ev.isStale && <span className="pill pill-danger" style={{ marginLeft: 6 }}>stale</span>}
                 </td>
                 <td style={{ padding: "10px 14px" }}>{ev.venue}</td>
                 <td style={{ padding: "10px 14px" }}>{dayjs(ev.startsAt).format("D MMM YYYY HH:mm")}</td>
                 <td style={{ padding: "10px 14px" }}>{ev.ticketsSold}</td>
                 <td style={{ padding: "10px 14px" }}>KSh {ev.revenue?.toLocaleString()}</td>
                 <td style={{ padding: "10px 14px" }}>{ev.isPublished ? "Yes" : "Draft"}</td>
-                <td style={{ padding: "10px 14px" }}>
-                  <button className="btn btn-ghost" style={{ padding: "6px 10px", fontSize: 12 }} onClick={() => copyLink(ev)}>
-                    {copiedId === ev._id ? "Copied!" : "Copy link"}
-                  </button>
+                <td style={{ padding: "10px 14px", maxWidth: 220 }}>
+                  {managerLinks[ev._id] ? (
+                    <span className="mono" style={{ fontSize: 11, wordBreak: "break-all" }}>{managerLinks[ev._id]}</span>
+                  ) : (
+                    <button className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => handleGetManagerLink(ev._id)}>
+                      Get link
+                    </button>
+                  )}
                 </td>
                 <td style={{ padding: "10px 14px", display: "flex", gap: 6 }}>
-                  {!isManager && (
-                    <>
-                      <button className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => startEdit(ev)}>Edit</button>
-                      <button className="btn btn-danger" style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => handleDelete(ev._id)}>Delete</button>
-                    </>
-                  )}
+                  <button className="btn btn-ghost" style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => startEdit(ev)}>Edit</button>
+                  <button className="btn btn-danger" style={{ padding: "6px 12px", fontSize: 12 }} onClick={() => handleDelete(ev._id)}>Delete</button>
                 </td>
               </tr>
             ))}

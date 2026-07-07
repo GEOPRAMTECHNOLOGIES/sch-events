@@ -75,7 +75,9 @@ exports.initiateBooking = async (req, res) => {
 
 async function deliverTicketEmail(ticket, event) {
   try {
-    const qrDataUrl = await QRCode.toDataURL(ticket.ticketCode);
+    // High error-correction + larger size so the code still scans even if the email
+    // client compresses/resizes the embedded image.
+    const qrDataUrl = await QRCode.toDataURL(ticket.ticketCode, { errorCorrectionLevel: "H", width: 400, margin: 2 });
     const User = require("../models/User");
     const user = await User.findById(ticket.user);
     await sendTicketConfirmationEmail(user.email, {
@@ -155,9 +157,7 @@ exports.myTickets = async (req, res) => {
 // ---- Admin ----
 
 exports.adminListTickets = async (req, res) => {
-  // Managers linked to one event only ever see that event's tickets.
-  const filter = req.admin.role === "manager" ? { event: req.admin.linkedEvent || null } : {};
-  const tickets = await Ticket.find(filter)
+  const tickets = await Ticket.find()
     .populate("user", "name email phone")
     .populate("event", "title startsAt")
     .sort({ createdAt: -1 })
@@ -169,9 +169,6 @@ exports.checkIn = async (req, res) => {
   const { ticketCode } = req.body;
   const ticket = await Ticket.findOne({ ticketCode });
   if (!ticket) return res.status(404).json({ message: "No ticket found with that code" });
-  if (req.admin.role === "manager" && String(ticket.event) !== String(req.admin.linkedEvent)) {
-    return res.status(403).json({ message: "This ticket belongs to a different event you don't manage" });
-  }
   if (ticket.status === "checked_in") return res.status(400).json({ message: "Ticket already checked in", ticket });
   if (ticket.status !== "confirmed") return res.status(400).json({ message: `Ticket is ${ticket.status}, cannot check in`, ticket });
 
@@ -183,12 +180,34 @@ exports.checkIn = async (req, res) => {
   res.json({ message: "Checked in", ticket });
 };
 
+// Used by the /#/manage/:token event-manager page - scoped so this link can only
+// check in tickets that belong to its own event, never any other event.
+exports.checkInByManagerToken = async (req, res) => {
+  const { ticketCode } = req.body;
+  const event = await Event.findOne({ managerToken: req.params.token });
+  if (!event) return res.status(404).json({ message: "Invalid or expired manager link" });
+
+  const ticket = await Ticket.findOne({ ticketCode, event: event._id });
+  if (!ticket) return res.status(404).json({ message: "No ticket for this event with that code" });
+  if (ticket.status === "checked_in") return res.status(400).json({ message: "Ticket already checked in", ticket });
+  if (ticket.status !== "confirmed") return res.status(400).json({ message: `Ticket is ${ticket.status}, cannot check in`, ticket });
+
+  ticket.status = "checked_in";
+  ticket.checkedInAt = new Date();
+  await ticket.save();
+  res.json({ message: "Checked in", ticket });
+};
+
+exports.managerEventTickets = async (req, res) => {
+  const event = await Event.findOne({ managerToken: req.params.token });
+  if (!event) return res.status(404).json({ message: "Invalid or expired manager link" });
+  const tickets = await Ticket.find({ event: event._id }).populate("user", "name email phone").sort({ createdAt: -1 });
+  res.json({ tickets });
+};
+
 exports.refund = async (req, res) => {
   const ticket = await Ticket.findById(req.params.id);
   if (!ticket) return res.status(404).json({ message: "Ticket not found" });
-  if (req.admin.role === "manager" && String(ticket.event) !== String(req.admin.linkedEvent)) {
-    return res.status(403).json({ message: "This ticket belongs to a different event you don't manage" });
-  }
   ticket.status = "refunded";
   await ticket.save();
   await logActivity(req, "refunded_ticket", { ticketId: ticket._id, ticketCode: ticket.ticketCode });

@@ -1,14 +1,14 @@
 @import url("https://fonts.googleapis.com/css2?family=Archivo+Black&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
 
 :root {
-  /* ---- CampusPass token system: physical paper ticket, DeKUT-inspired green & gold ---- */
-  --ink: #0b4f2c;       /* deep university green - headers, primary text */
-  --ink-soft: #3f6a52;
+  /* ---- CampusPass token system: physical paper ticket, not a "tech dashboard" ---- */
+  --ink: #1b2a4a;       /* deep navy - headers, primary text */
+  --ink-soft: #445074;
   --paper: #fbf7ee;     /* warm cream paper background */
-  --paper-dim: #eef2ec;
-  --stub-line: #cfd8c9; /* perforation / hairline color */
-  --gold: #f2b705;      /* ticket-stub accent, gold */
-  --gold-deep: #d69e00;
+  --paper-dim: #f2ecdb;
+  --stub-line: #d8cfb0; /* perforation / hairline color */
+  --gold: #f2c14e;      /* ticket-stub accent */
+  --gold-deep: #d9a520;
   --stamp: #c0392b;     /* used sparingly: sold-out stamps, destructive actions */
   --success: #2f9461;
 
@@ -141,6 +141,35 @@ label {
 .error-text { color: var(--stamp); font-size: 13px; margin-top: 6px; }
 .help-text { color: var(--ink-soft); font-size: 13px; margin-top: 6px; }
 
+/* Admin console shell - sidebar collapses above the content on narrow screens */
+.admin-shell {
+  display: flex;
+  min-height: 100vh;
+  background: #f4f2ea;
+}
+.admin-sidebar {
+  width: 230px;
+  flex-shrink: 0;
+  background: var(--ink);
+  color: #dfe4f2;
+  padding: 20px 14px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+.admin-main {
+  flex: 1;
+  padding: 28px;
+  overflow: auto;
+  min-width: 0;
+}
+@media (max-width: 820px) {
+  .admin-shell { flex-direction: column; }
+  .admin-sidebar { width: 100%; height: auto; position: static; padding: 14px; }
+  .admin-main { padding: 18px; }
+}
+
 /* perforated divider - the signature ticket-stub motif, reused across cards */
 .perforation {
   position: relative;
@@ -163,23 +192,12 @@ label {
   .perforation::before, .perforation::after { display: none; }
 }
 
-/* ---- Responsiveness for small screens ---- */
-@media (max-width: 860px) {
-  /* Event detail page: stack the info column and the booking card */
-  div[style*="grid-template-columns: 1.4fr 1fr"] {
-    grid-template-columns: 1fr !important;
-  }
-  /* Admin dashboard: collapse the fixed sidebar into a top bar */
-  .admin-shell { flex-direction: column; }
-  .admin-sidebar {
-    width: 100% !important;
-    height: auto !important;
-    position: relative !important;
-  }
+/* Reused for any page with a "main content + side card" layout (event detail, etc.) */
+.two-col {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 32px;
 }
-
-@media (max-width: 520px) {
-  .container { padding: 0 16px; }
-  h1 { font-size: 26px !important; }
+@media (max-width: 780px) {
+  .two-col { grid-template-columns: 1fr; }
 }
-

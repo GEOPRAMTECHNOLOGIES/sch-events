@@ -5,14 +5,12 @@ import { useAdminAuth } from "../../context/AdminAuthContext";
 export default function Admins() {
   const { admin } = useAdminAuth();
   const [admins, setAdmins] = useState([]);
-  const [events, setEvents] = useState([]);
-  const [form, setForm] = useState({ name: "", email: "", password: "", role: "manager", linkedEvent: "" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", role: "manager" });
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
 
   function load() {
     adminApi.get("/admin-auth/admins").then((res) => setAdmins(res.data.admins)).catch(() => {});
-    adminApi.get("/events/admin/all").then((res) => setEvents(res.data.events)).catch(() => {});
   }
   useEffect(load, []);
 
@@ -22,8 +20,8 @@ export default function Admins() {
     setInfo("");
     try {
       await adminApi.post("/admin-auth/admins", form);
-      setInfo(form.role === "manager" ? "Manager account created — share their email/password so they can log in and validate tickets for that event." : "Admin account created.");
-      setForm({ name: "", email: "", password: "", role: "manager", linkedEvent: "" });
+      setInfo("Admin account created.");
+      setForm({ name: "", email: "", password: "", role: "manager" });
       load();
     } catch (err) {
       setError(err.response?.data?.message || "Could not create admin");
@@ -41,10 +39,10 @@ export default function Admins() {
 
   return (
     <div>
-      <h1 style={{ fontFamily: "var(--font-display)", fontSize: 22, marginBottom: 18 }}>Admins & event managers</h1>
+      <h1 style={{ fontFamily: "var(--font-display)", fontSize: 22, marginBottom: 18 }}>Admins</h1>
 
-      <form onSubmit={handleCreate} className="card" style={{ padding: 20, maxWidth: 440, marginBottom: 24 }}>
-        <h3 style={{ marginTop: 0, fontSize: 14 }}>Add a new admin / event manager</h3>
+      <form onSubmit={handleCreate} className="card" style={{ padding: 20, maxWidth: 420, marginBottom: 24 }}>
+        <h3 style={{ marginTop: 0, fontSize: 14 }}>Add a new admin</h3>
         <div className="field">
           <label>Name</label>
           <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -60,33 +58,21 @@ export default function Admins() {
         <div className="field">
           <label>Role</label>
           <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-            <option value="manager">Event manager</option>
+            <option value="manager">Manager</option>
             <option value="support">Support</option>
             <option value="superadmin">Superadmin</option>
           </select>
         </div>
-        {form.role === "manager" && (
-          <div className="field">
-            <label>Linked event</label>
-            <select required value={form.linkedEvent} onChange={(e) => setForm({ ...form, linkedEvent: e.target.value })}>
-              <option value="">Choose the event this manager handles&hellip;</option>
-              {events.map((ev) => (
-                <option key={ev._id} value={ev._id}>{ev.title}</option>
-              ))}
-            </select>
-            <p className="help-text">This manager will only be able to view and validate tickets for this event.</p>
-          </div>
-        )}
         {error && <p className="error-text">{error}</p>}
         {info && <p style={{ color: "var(--success)", fontSize: 13 }}>{info}</p>}
-        <button className="btn btn-gold" style={{ width: "100%" }}>Create account</button>
+        <button className="btn btn-gold" style={{ width: "100%" }}>Create admin</button>
       </form>
 
       <div className="card" style={{ overflow: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
           <thead>
             <tr style={{ textAlign: "left", background: "var(--paper-dim)" }}>
-              {["Name", "Email", "Role", "Linked event", "Last login"].map((h) => (
+              {["Name", "Email", "Role", "Last login"].map((h) => (
                 <th key={h} style={{ padding: "10px 14px" }}>{h}</th>
               ))}
             </tr>
@@ -97,7 +83,6 @@ export default function Admins() {
                 <td style={{ padding: "10px 14px" }}>{a.name}</td>
                 <td style={{ padding: "10px 14px" }}>{a.email}</td>
                 <td style={{ padding: "10px 14px" }}>{a.role}</td>
-                <td style={{ padding: "10px 14px" }}>{a.linkedEvent?.title || "-"}</td>
                 <td style={{ padding: "10px 14px" }}>{a.lastLoginAt ? new Date(a.lastLoginAt).toLocaleString() : "Never"}</td>
               </tr>
             ))}

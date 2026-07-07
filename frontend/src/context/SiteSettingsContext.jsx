@@ -1,44 +1,43 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { api } from "../api/client";
 
-const defaults = {
+const DEFAULTS = {
   siteName: "CampusPass",
   heroTitle: "Your ticket to what's on campus.",
   heroSubtitle: "Book, pay with M-Pesa, and get your QR ticket straight to your inbox — no queueing at the gate.",
-  footerText: "campus events, one tap away.",
-  primaryColor: "#0B4F2C",
-  accentColor: "#F2B705",
-  paperColor: "#FBF7EE",
+  footerText: "Campus events, one tap away.",
+  inkColor: "#1b2a4a",
+  goldColor: "#f2c14e",
+  paperColor: "#fbf7ee",
 };
 
-const SiteSettingsContext = createContext({ settings: defaults, loading: true, refresh: () => {} });
+const SiteSettingsContext = createContext(DEFAULTS);
 
 function applyTheme(settings) {
   const root = document.documentElement;
-  root.style.setProperty("--ink", settings.primaryColor);
-  root.style.setProperty("--gold", settings.accentColor);
+  root.style.setProperty("--ink", settings.inkColor);
+  root.style.setProperty("--gold", settings.goldColor);
+  root.style.setProperty("--gold-deep", settings.goldColor);
   root.style.setProperty("--paper", settings.paperColor);
 }
 
 export function SiteSettingsProvider({ children }) {
-  const [settings, setSettings] = useState(defaults);
-  const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState(DEFAULTS);
 
-  function refresh() {
+  useEffect(() => {
     api
-      .get("/settings")
+      .get("/settings/public")
       .then((res) => {
-        const merged = { ...defaults, ...res.data.settings };
+        const merged = { ...DEFAULTS, ...res.data };
         setSettings(merged);
         applyTheme(merged);
       })
-      .catch(() => applyTheme(defaults))
-      .finally(() => setLoading(false));
-  }
+      .catch(() => {
+        // If this fails (e.g. offline), the site still works with sensible defaults.
+      });
+  }, []);
 
-  useEffect(refresh, []);
-
-  return <SiteSettingsContext.Provider value={{ settings, loading, refresh }}>{children}</SiteSettingsContext.Provider>;
+  return <SiteSettingsContext.Provider value={settings}>{children}</SiteSettingsContext.Provider>;
 }
 
 export function useSiteSettings() {

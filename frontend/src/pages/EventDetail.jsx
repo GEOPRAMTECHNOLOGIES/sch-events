@@ -4,49 +4,38 @@ import dayjs from "dayjs";
 import { api } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 
-const OBJECT_ID_RE = /^[a-f0-9]{24}$/i;
-
 export default function EventDetail() {
-  const { idOrSlug } = useParams();
+  const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [event, setEvent] = useState(null);
-  const [notFound, setNotFound] = useState(false);
   const [tierId, setTierId] = useState("");
   const [phone, setPhone] = useState("");
   const [status, setStatus] = useState("idle"); // idle | paying | success | error
   const [message, setMessage] = useState("");
-  const [activeImage, setActiveImage] = useState(0);
   const pollRef = useRef(null);
 
   useEffect(() => {
-    const request = OBJECT_ID_RE.test(idOrSlug) ? api.get(`/events/${idOrSlug}`) : api.get(`/events/slug/${idOrSlug}`);
-    request
-      .then((res) => {
-        setEvent(res.data.event);
-        setTierId(res.data.event.tiers?.[0]?._id || "");
-      })
-      .catch(() => setNotFound(true));
+    api.get(`/events/${id}`).then((res) => {
+      setEvent(res.data.event);
+      setTierId(res.data.event.tiers?.[0]?._id || "");
+    });
     return () => clearInterval(pollRef.current);
-  }, [idOrSlug]);
+  }, [id]);
 
-  if (notFound) return <div className="container" style={{ padding: 40 }}>That event couldn't be found.</div>;
   if (!event) return <div className="container" style={{ padding: 40 }}>Loading&hellip;</div>;
 
   const tier = event.tiers.find((t) => t._id === tierId);
-  const images = [
-    ...(event.coverImageUrl ? [{ url: event.coverImageUrl, caption: "" }] : []),
-    ...(event.gallery || []),
-  ];
+  // Per-event accent color override, e.g. a club/sponsor's own brand color for this one event.
   const accent = event.themeColor || undefined;
 
   async function handleBook(e) {
     e.preventDefault();
-    if (!user) return navigate("/login", { state: { from: `/events/${event._id}` } });
+    if (!user) return navigate("/login", { state: { from: `/events/${id}` } });
     setStatus("paying");
     setMessage("");
     try {
-      const res = await api.post("/tickets/book", { eventId: event._id, tierId, phone });
+      const res = await api.post("/tickets/book", { eventId: id, tierId, phone });
       if (res.data.free) {
         setStatus("success");
         setMessage("Ticket confirmed! Check your email for your QR ticket.");
@@ -73,61 +62,44 @@ export default function EventDetail() {
   }
 
   return (
-    <div className="container" style={{ padding: "40px 24px", display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 32 }}>
+    <div className="container two-col" style={{ padding: "40px 24px" }}>
       <div>
-        {images.length > 0 && (
-          <div style={{ marginBottom: 20 }}>
-            <img
-              src={images[activeImage]?.url}
-              alt={images[activeImage]?.caption || event.title}
-              style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", borderRadius: 12, boxShadow: "var(--shadow-card)" }}
-            />
-            {images.length > 1 && (
-              <div style={{ display: "flex", gap: 8, marginTop: 8, overflowX: "auto" }}>
-                {images.map((img, i) => (
-                  <img
-                    key={i}
-                    src={img.url}
-                    alt=""
-                    onClick={() => setActiveImage(i)}
-                    style={{
-                      width: 72,
-                      height: 48,
-                      objectFit: "cover",
-                      borderRadius: 6,
-                      cursor: "pointer",
-                      border: i === activeImage ? `2px solid ${accent || "var(--gold-deep)"}` : "2px solid transparent",
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        <span className="pill pill-muted" style={accent ? { background: accent, color: "#fff" } : undefined}>
-          {event.category}
-        </span>
+        <span className="pill pill-muted">{event.category}</span>
         <h1 style={{ fontFamily: "var(--font-display)", fontSize: 32, margin: "12px 0" }}>{event.title}</h1>
         <p style={{ color: "var(--ink-soft)" }}>
           {dayjs(event.startsAt).format("dddd, D MMMM YYYY \u00b7 HH:mm")} &middot; {event.venue}
         </p>
         <p style={{ lineHeight: 1.6, marginTop: 16 }}>{event.description}</p>
 
-        {event.externalLink && (
-          <a
-            href={event.externalLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-ghost"
-            style={{ marginTop: 12, display: "inline-flex" }}
+        {event.images?.length > 0 && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+              gap: 10,
+              marginTop: 20,
+            }}
           >
-            More about this event &rarr;
+            {event.images.map((src, i) => (
+              <img
+                key={i}
+                src={src}
+                alt={`${event.title} ${i + 1}`}
+                style={{ width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 8, border: "1px solid var(--stub-line)" }}
+                loading="lazy"
+              />
+            ))}
+          </div>
+        )}
+
+        {event.externalLink && (
+          <a href={event.externalLink} target="_blank" rel="noreferrer" className="btn btn-ghost" style={{ marginTop: 20 }}>
+            More info &rarr;
           </a>
         )}
       </div>
 
-      <div className="card" style={{ padding: 24, height: "fit-content" }}>
+      <div className="card" style={{ padding: 24, height: "fit-content", borderTop: accent ? `4px solid ${accent}` : undefined }}>
         <h3 style={{ marginTop: 0, fontFamily: "var(--font-display)", fontSize: 16 }}>Get your ticket</h3>
 
         <div className="field">
@@ -149,12 +121,7 @@ export default function EventDetail() {
           </div>
         )}
 
-        <button
-          className="btn btn-gold"
-          style={{ width: "100%", ...(accent ? { background: accent, color: "#fff" } : {}) }}
-          onClick={handleBook}
-          disabled={status === "paying"}
-        >
+        <button className="btn btn-gold" style={{ width: "100%" }} onClick={handleBook} disabled={status === "paying"}>
           {status === "paying" ? "Waiting for payment\u2026" : tier?.price === 0 ? "Reserve free ticket" : `Pay KSh ${tier?.price || 0}`}
         </button>
 

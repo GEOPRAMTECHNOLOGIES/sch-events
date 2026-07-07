@@ -1,21 +1,20 @@
 const mongoose = require("mongoose");
 
-// Singleton document (there is only ever one) so admins can edit the site's
-// public-facing copy and color theme without touching code.
 const siteSettingsSchema = new mongoose.Schema(
   {
+    // there is only ever one of these documents - see getSingleton() below
     siteName: { type: String, default: "CampusPass" },
     heroTitle: { type: String, default: "Your ticket to what's on campus." },
     heroSubtitle: {
       type: String,
       default: "Book, pay with M-Pesa, and get your QR ticket straight to your inbox — no queueing at the gate.",
     },
-    footerText: { type: String, default: "campus events, one tap away." },
-    // Colors - default to a DeKUT-inspired palette (deep university green + gold).
-    primaryColor: { type: String, default: "#0B4F2C" },
-    accentColor: { type: String, default: "#F2B705" },
-    paperColor: { type: String, default: "#FBF7EE" },
-    updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
+    footerText: { type: String, default: "Campus events, one tap away." },
+
+    // Theme colors - CSS variables on the public site are overridden with these at runtime.
+    inkColor: { type: String, default: "#1b2a4a" }, // primary/dark color
+    goldColor: { type: String, default: "#f2c14e" }, // accent color
+    paperColor: { type: String, default: "#fbf7ee" }, // background color
   },
   { timestamps: true }
 );

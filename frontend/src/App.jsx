@@ -1,9 +1,9 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { AdminAuthProvider } from "./context/AdminAuthContext";
 import { SiteSettingsProvider } from "./context/SiteSettingsContext";
-import { useAdminAuth } from "./context/AdminAuthContext";
 import { ADMIN_ROUTE_SLUG } from "./api/client";
+import ManagerPortal from "./pages/ManagerPortal";
 
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
@@ -39,9 +39,8 @@ function PublicSite() {
       <Navbar />
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/events/:idOrSlug" element={<EventDetail />} />
-        {/* Friendly shareable per-event link, e.g. /#/event/freshers-night */}
-        <Route path="/event/:idOrSlug" element={<EventDetail />} />
+        <Route path="/events/:id" element={<EventDetail />} />
+        <Route path="/manage/:token" element={<ManagerPortal />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/verify-otp" element={<VerifyOtp />} />
@@ -60,15 +59,8 @@ function PublicSite() {
   );
 }
 
-function AdminIndexRedirect() {
-  const { admin } = useAdminAuth();
-  if (admin?.role === "manager") return <Navigate to="events" replace />;
-  return <Overview />;
-}
-
 export default function App() {
   return (
-    <SiteSettingsProvider>
     <Routes>
       {/*
         The admin dashboard is intentionally NOT linked from any public nav.
@@ -89,7 +81,7 @@ export default function App() {
                   </AdminProtectedRoute>
                 }
               >
-                <Route index element={<AdminIndexRedirect />} />
+                <Route index element={<Overview />} />
                 <Route path="analytics" element={<Analytics />} />
                 <Route path="users" element={<Users />} />
                 <Route path="transactions" element={<Transactions />} />
@@ -110,12 +102,13 @@ export default function App() {
       <Route
         path="/*"
         element={
-          <AuthProvider>
-            <PublicSite />
-          </AuthProvider>
+          <SiteSettingsProvider>
+            <AuthProvider>
+              <PublicSite />
+            </AuthProvider>
+          </SiteSettingsProvider>
         }
       />
     </Routes>
-    </SiteSettingsProvider>
   );
 }
