@@ -1,15 +1,17 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useSiteSettings } from "../context/SiteSettingsContext";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
+  const { settings } = useSiteSettings();
   const navigate = useNavigate();
 
   return (
     <header style={{ borderBottom: "2px dashed var(--stub-line)", background: "var(--paper)", position: "sticky", top: 0, zIndex: 20 }}>
       <div className="container" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 72 }}>
         <Link to="/" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontFamily: "var(--font-display)", fontSize: 20, letterSpacing: "0.02em" }}>CampusPass</span>
+          <span style={{ fontFamily: "var(--font-display)", fontSize: 20, letterSpacing: "0.02em" }}>{settings.siteName}</span>
           <span className="pill pill-gold" style={{ transform: "rotate(-4deg)" }}>admit one</span>
         </Link>
 

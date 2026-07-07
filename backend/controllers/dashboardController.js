@@ -94,10 +94,35 @@ exports.toggleUserActive = async (req, res) => {
   res.json({ user: user.toSafeJSON(), isActive: user.isActive });
 };
 
-// 6. Transactions table
+// 6. Transactions table - filterable by at least 6 independent params:
+// status, event, phone, date range (from/to), and amount range (min/max).
+// `search` additionally matches against the linked user's name/email.
 exports.transactions = async (req, res) => {
-  const { page = 1, limit = 25, status } = req.query;
-  const filter = status ? { status } : {};
+  const { page = 1, limit = 25, status, event, phone, dateFrom, dateTo, minAmount, maxAmount, search } = req.query;
+  const filter = {};
+  if (status) filter.status = status;
+  if (event) filter.event = event;
+  if (phone) filter.phone = { $regex: phone, $options: "i" };
+  if (dateFrom || dateTo) {
+    filter.createdAt = {};
+    if (dateFrom) filter.createdAt.$gte = new Date(dateFrom);
+    if (dateTo) filter.createdAt.$lte = new Date(dateTo);
+  }
+  if (minAmount || maxAmount) {
+    filter.amount = {};
+    if (minAmount) filter.amount.$gte = Number(minAmount);
+    if (maxAmount) filter.amount.$lte = Number(maxAmount);
+  }
+
+  let userIds;
+  if (search) {
+    const matchingUsers = await User.find({
+      $or: [{ name: { $regex: search, $options: "i" } }, { email: { $regex: search, $options: "i" } }],
+    }).select("_id");
+    userIds = matchingUsers.map((u) => u._id);
+    filter.$or = [{ user: { $in: userIds } }, { mpesaReceiptNumber: { $regex: search, $options: "i" } }];
+  }
+
   const [transactions, total] = await Promise.all([
     Transaction.find(filter)
       .populate("user", "name email phone")
@@ -108,6 +133,24 @@ exports.transactions = async (req, res) => {
     Transaction.countDocuments(filter),
   ]);
   res.json({ transactions, total, page: Number(page), pages: Math.ceil(total / limit) });
+};
+
+// Delete a single transaction (admin safety valve for one-off cleanup).
+exports.deleteTransaction = async (req, res) => {
+  const txn = await Transaction.findByIdAndDelete(req.params.id);
+  if (!txn) return res.status(404).json({ message: "Transaction not found" });
+  res.json({ message: "Transaction deleted" });
+};
+
+// Bulk-delete non-successful transactions older than 2 weeks (failed/cancelled/stuck "initiated").
+// Successful transactions are never touched by this endpoint.
+exports.cleanupOldFailedTransactions = async (req, res) => {
+  const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+  const result = await Transaction.deleteMany({
+    status: { $in: ["failed", "cancelled", "initiated"] },
+    createdAt: { $lt: twoWeeksAgo },
+  });
+  res.json({ message: `Deleted ${result.deletedCount} old non-successful transaction(s)`, deletedCount: result.deletedCount });
 };
 
 // 7. CSV export for transactions

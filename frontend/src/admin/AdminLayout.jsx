@@ -1,8 +1,9 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { ADMIN_ROUTE_SLUG } from "../api/client";
 import { useAdminAuth } from "../context/AdminAuthContext";
+import { useSiteSettings } from "../context/SiteSettingsContext";
 
-const NAV = [
+const FULL_NAV = [
   { to: "", label: "Overview", icon: "\u25A3" },
   { to: "analytics", label: "Analytics & graphs", icon: "\u25B2" },
   { to: "users", label: "Users", icon: "\u25CF" },
@@ -17,16 +18,25 @@ const NAV = [
   { to: "admins", label: "Admins", icon: "\u26AD" },
 ];
 
+// Event managers only get their event + ticket validation - the rest of the
+// dashboard's APIs are blocked for them server-side too, so hide the links.
+const MANAGER_NAV = [
+  { to: "events", label: "My event", icon: "\u2691" },
+  { to: "check-in", label: "Check-in / validate tickets", icon: "\u2713" },
+];
+
 export default function AdminLayout() {
   const { admin, logout } = useAdminAuth();
   const navigate = useNavigate();
   const base = `/${ADMIN_ROUTE_SLUG}`;
+  const NAV = admin?.role === "manager" ? MANAGER_NAV : FULL_NAV;
+  const { settings } = useSiteSettings();
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#f4f2ea" }}>
-      <aside style={{ width: 230, background: "var(--ink)", color: "#dfe4f2", padding: "20px 14px", position: "sticky", top: 0, height: "100vh" }}>
+    <div className="admin-shell" style={{ display: "flex", minHeight: "100vh", background: "#f4f2ea" }}>
+      <aside className="admin-sidebar" style={{ width: 230, background: "var(--ink)", color: "#dfe4f2", padding: "20px 14px", position: "sticky", top: 0, height: "100vh" }}>
         <div style={{ padding: "6px 10px 20px" }}>
-          <div style={{ fontFamily: "var(--font-display)", color: "var(--gold)", fontSize: 16 }}>CampusPass</div>
+          <div style={{ fontFamily: "var(--font-display)", color: "var(--gold)", fontSize: 16 }}>{settings.siteName}</div>
           <div style={{ fontSize: 11, color: "#8d96b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>admin console</div>
         </div>
         <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>

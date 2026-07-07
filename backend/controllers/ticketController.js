@@ -155,7 +155,9 @@ exports.myTickets = async (req, res) => {
 // ---- Admin ----
 
 exports.adminListTickets = async (req, res) => {
-  const tickets = await Ticket.find()
+  // Managers linked to one event only ever see that event's tickets.
+  const filter = req.admin.role === "manager" ? { event: req.admin.linkedEvent || null } : {};
+  const tickets = await Ticket.find(filter)
     .populate("user", "name email phone")
     .populate("event", "title startsAt")
     .sort({ createdAt: -1 })
@@ -167,6 +169,9 @@ exports.checkIn = async (req, res) => {
   const { ticketCode } = req.body;
   const ticket = await Ticket.findOne({ ticketCode });
   if (!ticket) return res.status(404).json({ message: "No ticket found with that code" });
+  if (req.admin.role === "manager" && String(ticket.event) !== String(req.admin.linkedEvent)) {
+    return res.status(403).json({ message: "This ticket belongs to a different event you don't manage" });
+  }
   if (ticket.status === "checked_in") return res.status(400).json({ message: "Ticket already checked in", ticket });
   if (ticket.status !== "confirmed") return res.status(400).json({ message: `Ticket is ${ticket.status}, cannot check in`, ticket });
 
@@ -181,6 +186,9 @@ exports.checkIn = async (req, res) => {
 exports.refund = async (req, res) => {
   const ticket = await Ticket.findById(req.params.id);
   if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+  if (req.admin.role === "manager" && String(ticket.event) !== String(req.admin.linkedEvent)) {
+    return res.status(403).json({ message: "This ticket belongs to a different event you don't manage" });
+  }
   ticket.status = "refunded";
   await ticket.save();
   await logActivity(req, "refunded_ticket", { ticketId: ticket._id, ticketCode: ticket.ticketCode });

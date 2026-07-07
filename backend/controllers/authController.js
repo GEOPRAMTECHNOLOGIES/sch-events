@@ -1,6 +1,6 @@
 const User = require("../models/User");
 const OtpLog = require("../models/OtpLog");
-const { generateOtpCode, hashOtp, signUserToken } = require("../utils/helpers");
+const { generateOtpCode, hashOtp, signUserToken, isValidEmail } = require("../utils/helpers");
 const { sendOtpEmail } = require("../utils/mailer");
 
 const OTP_MINUTES = Number(process.env.OTP_EXPIRY_MINUTES || 10);
@@ -21,6 +21,9 @@ exports.register = async (req, res) => {
     const { name, email, phone, password, campus } = req.body;
     if (!name || !email || !phone || !password) {
       return res.status(400).json({ message: "All fields are required" });
+    }
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ message: "Please enter a complete, correctly formatted email address" });
     }
     const existing = await User.findOne({ email: email.toLowerCase() });
     if (existing) return res.status(409).json({ message: "An account with this email already exists" });

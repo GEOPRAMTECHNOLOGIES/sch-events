@@ -1,14 +1,14 @@
 @import url("https://fonts.googleapis.com/css2?family=Archivo+Black&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
 
 :root {
-  /* ---- CampusPass token system: physical paper ticket, not a "tech dashboard" ---- */
-  --ink: #1b2a4a;       /* deep navy - headers, primary text */
-  --ink-soft: #445074;
+  /* ---- CampusPass token system: physical paper ticket, DeKUT-inspired green & gold ---- */
+  --ink: #0b4f2c;       /* deep university green - headers, primary text */
+  --ink-soft: #3f6a52;
   --paper: #fbf7ee;     /* warm cream paper background */
-  --paper-dim: #f2ecdb;
-  --stub-line: #d8cfb0; /* perforation / hairline color */
-  --gold: #f2c14e;      /* ticket-stub accent */
-  --gold-deep: #d9a520;
+  --paper-dim: #eef2ec;
+  --stub-line: #cfd8c9; /* perforation / hairline color */
+  --gold: #f2b705;      /* ticket-stub accent, gold */
+  --gold-deep: #d69e00;
   --stamp: #c0392b;     /* used sparingly: sold-out stamps, destructive actions */
   --success: #2f9461;
 
@@ -162,3 +162,24 @@ label {
 @media (max-width: 640px) {
   .perforation::before, .perforation::after { display: none; }
 }
+
+/* ---- Responsiveness for small screens ---- */
+@media (max-width: 860px) {
+  /* Event detail page: stack the info column and the booking card */
+  div[style*="grid-template-columns: 1.4fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+  /* Admin dashboard: collapse the fixed sidebar into a top bar */
+  .admin-shell { flex-direction: column; }
+  .admin-sidebar {
+    width: 100% !important;
+    height: auto !important;
+    position: relative !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .container { padding: 0 16px; }
+  h1 { font-size: 26px !important; }
+}
+
