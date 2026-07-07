@@ -1,5 +1,21 @@
+const mongoose = require("mongoose");
 const Event = require("../models/Event");
 const logActivity = require("../middleware/logActivity");
+
+const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+
+async function makeUniqueSlug(title, ignoreId) {
+  const base = Event.slugify(title) || "event";
+  let slug = base;
+  let n = 1;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const clash = await Event.findOne({ slug, ...(ignoreId ? { _id: { $ne: ignoreId } } : {}) });
+    if (!clash) return slug;
+    n += 1;
+    slug = `${base}-${n}`;
+  }
+}
 
 exports.listPublic = async (req, res) => {
   const { category, campus, search } = req.query;
@@ -12,30 +28,36 @@ exports.listPublic = async (req, res) => {
   res.json({ events });
 };
 
+// Looks an event up by its Mongo _id OR its shareable slug, e.g. /#/event/freshers-night
 exports.getOne = async (req, res) => {
-  const event = await Event.findById(req.params.id);
+  const { id } = req.params;
+  const event = mongoose.isValidObjectId(id)
+    ? await Event.findById(id)
+    : await Event.findOne({ slug: id.toLowerCase() });
   if (!event) return res.status(404).json({ message: "Event not found" });
-  res.json({ event });
-};
-
-// Public (token-gated): powers the /#/manage/:token event-manager page. Anyone with the
-// link can view this one event's details - there's no separate login, the link is the credential.
-exports.getByManagerToken = async (req, res) => {
-  const event = await Event.findOne({ managerToken: req.params.token });
-  if (!event) return res.status(404).json({ message: "Invalid or expired manager link" });
   res.json({ event });
 };
 
 // ---- Admin ----
 
+// Managers only ever see the single event assigned to them by an admin.
 exports.adminList = async (req, res) => {
-  const events = await Event.find().sort({ createdAt: -1 });
+  const filter = req.admin.role === "manager" ? { _id: req.admin.managedEvent } : {};
+  const events = await Event.find(filter).populate("manager", "name email").sort({ createdAt: -1 });
   res.json({ events });
 };
 
 exports.create = async (req, res) => {
   try {
-    const event = await Event.create({ ...req.body, createdBy: req.admin._id });
+    const slug = await makeUniqueSlug(req.body.title);
+    const images = Array.isArray(req.body.images) ? req.body.images.filter(Boolean) : [];
+    const event = await Event.create({
+      ...req.body,
+      slug,
+      images,
+      coverImageUrl: req.body.coverImageUrl || images[0] || "",
+      createdBy: req.admin._id,
+    });
     await logActivity(req, "created_event", { eventId: event._id, title: event.title });
     res.status(201).json({ event });
   } catch (err) {
@@ -46,8 +68,19 @@ exports.create = async (req, res) => {
 
 exports.update = async (req, res) => {
   try {
-    const event = await Event.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!event) return res.status(404).json({ message: "Event not found" });
+    const existing = await Event.findById(req.params.id);
+    if (!existing) return res.status(404).json({ message: "Event not found" });
+
+    const body = { ...req.body };
+    if (body.title && body.title !== existing.title) {
+      body.slug = await makeUniqueSlug(body.title, existing._id);
+    }
+    if (Array.isArray(body.images)) {
+      body.images = body.images.filter(Boolean);
+      body.coverImageUrl = body.coverImageUrl || body.images[0] || existing.coverImageUrl;
+    }
+
+    const event = await Event.findByIdAndUpdate(req.params.id, body, { new: true, runValidators: true });
     await logActivity(req, "updated_event", { eventId: event._id, title: event.title });
     res.json({ event });
   } catch (err) {
@@ -55,19 +88,21 @@ exports.update = async (req, res) => {
   }
 };
 
-// Creates (or rotates) this event's secret manager link. Rotating invalidates the old link.
-exports.regenerateManagerLink = async (req, res) => {
-  const event = await Event.findById(req.params.id);
-  if (!event) return res.status(404).json({ message: "Event not found" });
-  event.generateManagerToken();
-  await event.save();
-  await logActivity(req, "regenerated_manager_link", { eventId: event._id, title: event.title });
-  res.json({ managerToken: event.managerToken });
-};
-
 exports.remove = async (req, res) => {
   const event = await Event.findByIdAndDelete(req.params.id);
   if (!event) return res.status(404).json({ message: "Event not found" });
   await logActivity(req, "deleted_event", { eventId: event._id, title: event.title });
   res.json({ message: "Event deleted" });
+};
+
+// Events whose end (or start, if no end date) was more than a month ago and
+// still exist in the system - the admin gets reminded to clean them up.
+exports.staleEvents = async (req, res) => {
+  const cutoff = new Date(Date.now() - ONE_MONTH_MS);
+  const events = await Event.find({
+    $expr: { $lt: [{ $ifNull: ["$endsAt", "$startsAt"] }, cutoff] },
+  })
+    .select("title slug startsAt endsAt")
+    .sort({ startsAt: 1 });
+  res.json({ events });
 };

@@ -65,34 +65,20 @@ async function sendOtpEmail(to, code, purpose = "signup") {
 }
 
 async function sendTicketConfirmationEmail(to, { eventTitle, tierName, ticketCode, venue, startsAt, qrDataUrl }) {
-  // Every field below is required for the ticket to be useful at the gate, so we never
-  // send this email with a blank/undefined value - fall back to a safe placeholder instead
-  // of silently omitting something, since a partially-blank ticket email is worse than none.
-  const safe = (v, fallback = "TBA") => (v === undefined || v === null || v === "" ? fallback : v);
-
   const html = wrapLayout(
-    `<p style="color:#444;font-size:14px;">Your ticket for <strong>${safe(eventTitle)}</strong> is confirmed. See you there!</p>
+    `<p style="color:#444;font-size:14px;">Your ticket for <strong>${eventTitle}</strong> is confirmed. See you there!</p>
      <table style="width:100%;font-size:14px;color:#333;margin:16px 0;">
-       <tr><td style="padding:4px 0;color:#888;">Ticket type</td><td style="text-align:right;font-weight:600;">${safe(tierName)}</td></tr>
-       <tr><td style="padding:4px 0;color:#888;">Venue</td><td style="text-align:right;font-weight:600;">${safe(venue)}</td></tr>
-       <tr><td style="padding:4px 0;color:#888;">Date</td><td style="text-align:right;font-weight:600;">${startsAt ? new Date(startsAt).toLocaleString() : "TBA"}</td></tr>
-       <tr><td style="padding:4px 0;color:#888;">Ticket code</td><td style="text-align:right;font-weight:700;font-family:monospace;font-size:15px;">${safe(ticketCode)}</td></tr>
+       <tr><td style="padding:4px 0;color:#888;">Ticket type</td><td style="text-align:right;font-weight:600;">${tierName}</td></tr>
+       <tr><td style="padding:4px 0;color:#888;">Venue</td><td style="text-align:right;font-weight:600;">${venue}</td></tr>
+       <tr><td style="padding:4px 0;color:#888;">Date</td><td style="text-align:right;font-weight:600;">${new Date(startsAt).toLocaleString()}</td></tr>
+       <tr><td style="padding:4px 0;color:#888;">Ticket code</td><td style="text-align:right;font-weight:600;">${ticketCode}</td></tr>
      </table>
-     ${
-       qrDataUrl
-         ? `<div style="text-align:center;margin:16px 0;">
-              <img src="${qrDataUrl}" alt="QR code for ticket ${safe(ticketCode)}" width="200" height="200" style="width:200px;height:200px;border:8px solid #fff;background:#fff;" />
-            </div>`
-         : ""
-     }
-     <p style="color:#888;font-size:12px;text-align:center;">
-       Show the QR code above at the entrance for check-in. If it doesn't load in your inbox, the ticket code
-       <strong>${safe(ticketCode)}</strong> above works on its own &mdash; just show or read that out at the gate.
-     </p>`,
+     ${qrDataUrl ? `<div style="text-align:center;margin:16px 0;"><img src="${qrDataUrl}" alt="Ticket QR code" style="width:160px;height:160px;" /></div>` : ""}
+     <p style="color:#888;font-size:12px;">Show the QR code above at the entrance for check-in.</p>`,
     "Ticket confirmed \u2705"
   );
 
-  await sendMail({ to, subject: `Your ticket for ${safe(eventTitle, "your event")}`, html });
+  await sendMail({ to, subject: `Your ticket for ${eventTitle}`, html });
 }
 
 async function sendNotificationEmail(to, { title, message }) {

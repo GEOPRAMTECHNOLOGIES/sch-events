@@ -13,7 +13,7 @@ const mpesaRoutes = require("./routes/mpesaRoutes");
 const adminAuthRoutes = require("./routes/adminAuthRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
-const settingsRoutes = require("./routes/settingsRoutes");
+const siteSettingsRoutes = require("./routes/siteSettingsRoutes");
 
 const app = express();
 
@@ -38,7 +38,7 @@ app.use("/api/mpesa", mpesaRoutes);
 app.use("/api/admin-auth", adminAuthRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/settings", settingsRoutes);
+app.use("/api/settings", siteSettingsRoutes);
 
 // Note: the admin dashboard's hidden route (process.env.ADMIN_ROUTE_SLUG) is a
 // FRONTEND route, not a backend one - see frontend/src/App.jsx. The backend only

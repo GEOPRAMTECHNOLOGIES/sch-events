@@ -95,29 +95,47 @@ exports.toggleUserActive = async (req, res) => {
   res.json({ user: user.toSafeJSON(), isActive: user.isActive });
 };
 
-// 6. Transactions table - filterable by: status, event, date range (from/to), search
-// (phone/receipt), and amount range (min/max) = 7 independent filter params.
+// 6. Transactions table - filterable by at least 6 params: status, event,
+// date range (from/to), phone, search (name/email/mpesa receipt), amount range.
 exports.transactions = async (req, res) => {
-  const { page = 1, limit = 25, status, eventId, dateFrom, dateTo, search, minAmount, maxAmount } = req.query;
-  const filter = {};
+  const {
+    page = 1,
+    limit = 25,
+    status,
+    eventId,
+    phone,
+    search,
+    dateFrom,
+    dateTo,
+    minAmount,
+    maxAmount,
+    mpesaReceipt,
+  } = req.query;
 
+  const filter = {};
   if (status) filter.status = status;
   if (eventId) filter.event = eventId;
+  if (phone) filter.phone = { $regex: phone.replace(/\s|-/g, ""), $options: "i" };
+  if (mpesaReceipt) filter.mpesaReceiptNumber = { $regex: mpesaReceipt, $options: "i" };
+
   if (dateFrom || dateTo) {
     filter.createdAt = {};
     if (dateFrom) filter.createdAt.$gte = new Date(dateFrom);
-    if (dateTo) filter.createdAt.$lte = new Date(dateTo);
+    if (dateTo) filter.createdAt.$lte = new Date(new Date(dateTo).getTime() + 24 * 3600 * 1000 - 1);
   }
-  if (search) {
-    filter.$or = [
-      { phone: { $regex: search, $options: "i" } },
-      { mpesaReceiptNumber: { $regex: search, $options: "i" } },
-    ];
-  }
+
   if (minAmount || maxAmount) {
     filter.amount = {};
     if (minAmount) filter.amount.$gte = Number(minAmount);
     if (maxAmount) filter.amount.$lte = Number(maxAmount);
+  }
+
+  // "search" matches against the linked user's name/email - resolve to a set of user ids first.
+  if (search) {
+    const matchingUsers = await User.find({
+      $or: [{ name: { $regex: search, $options: "i" } }, { email: { $regex: search, $options: "i" } }],
+    }).select("_id");
+    filter.user = { $in: matchingUsers.map((u) => u._id) };
   }
 
   const [transactions, total] = await Promise.all([
@@ -132,12 +150,27 @@ exports.transactions = async (req, res) => {
   res.json({ transactions, total, page: Number(page), pages: Math.ceil(total / limit) });
 };
 
-// Bulk-deletes non-successful transactions older than 14 days (keeps successful ones always).
-exports.cleanupOldTransactions = async (req, res) => {
+// A lightweight "most recent transactions" feed for the top-level Overview page.
+exports.recentTransactions = async (req, res) => {
+  const transactions = await Transaction.find()
+    .populate("user", "name email")
+    .populate("event", "title")
+    .sort({ createdAt: -1 })
+    .limit(8);
+  res.json({ transactions });
+};
+
+// Bulk-delete non-successful transactions (failed/cancelled) older than 2 weeks.
+// "initiated" ones are left alone by default since a payment could still be in flight.
+exports.deleteOldTransactions = async (req, res) => {
   const cutoff = new Date(Date.now() - 14 * 24 * 3600 * 1000);
-  const result = await Transaction.deleteMany({ status: { $ne: "success" }, createdAt: { $lt: cutoff } });
-  await logActivity(req, "cleaned_up_old_transactions", { deletedCount: result.deletedCount });
-  res.json({ message: `Deleted ${result.deletedCount} old non-successful transactions`, deletedCount: result.deletedCount });
+  const statuses = Array.isArray(req.body?.statuses) && req.body.statuses.length ? req.body.statuses : ["failed", "cancelled"];
+  const filter = { status: { $in: statuses }, createdAt: { $lt: cutoff } };
+
+  const count = await Transaction.countDocuments(filter);
+  await Transaction.deleteMany(filter);
+  await logActivity(req, "deleted_old_transactions", { statuses, count, cutoff });
+  res.json({ message: `Deleted ${count} old transaction(s)`, deletedCount: count });
 };
 
 // 7. CSV export for transactions
@@ -215,24 +248,6 @@ exports.settings = async (req, res) => {
     mongoConnected: true,
     adminRouteSlug: process.env.ADMIN_ROUTE_SLUG,
   });
-};
-
-// Powers a "recent transactions" widget right on the Overview (top) page.
-exports.recentTransactions = async (req, res) => {
-  const transactions = await Transaction.find()
-    .populate("user", "name email")
-    .populate("event", "title")
-    .sort({ createdAt: -1 })
-    .limit(8);
-  res.json({ transactions });
-};
-
-// Events that ended over 30 days ago - shown as a "clean these up?" reminder banner.
-// Nothing is auto-deleted; the admin decides from the Events tab.
-exports.staleEvents = async (req, res) => {
-  const events = await Event.find().select("title startsAt endsAt");
-  const stale = events.filter((e) => e.isStale).map((e) => ({ id: e._id, title: e.title, endedAt: e.endsAt || e.startsAt }));
-  res.json({ events: stale });
 };
 
 exports.adminsCount = async (req, res) => {

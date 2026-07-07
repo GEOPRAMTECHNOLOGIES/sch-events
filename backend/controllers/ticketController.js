@@ -3,9 +3,21 @@ const Event = require("../models/Event");
 const Ticket = require("../models/Ticket");
 const Transaction = require("../models/Transaction");
 const { initiateStkPush } = require("../utils/mpesa");
-const { generateTicketCode } = require("../utils/helpers");
+const {
+  generateTicketCode,
+  isValidEmail,
+  buildQrPayload,
+  verifyQrPayload,
+  ticketEmailPayloadIsComplete,
+} = require("../utils/helpers");
 const { sendTicketConfirmationEmail } = require("../utils/mailer");
 const logActivity = require("../middleware/logActivity");
+
+// Managers only ever see/act on the single event assigned to them.
+function eventScopeFilter(admin) {
+  if (admin.role === "manager") return { event: admin.managedEvent };
+  return {};
+}
 
 // Step 1: user picks a tier and phone number -> we create a pending ticket + transaction
 // and trigger an STK push prompt on their phone.
@@ -74,24 +86,77 @@ exports.initiateBooking = async (req, res) => {
 };
 
 async function deliverTicketEmail(ticket, event) {
+  const User = require("../models/User");
   try {
-    // High error-correction + larger size so the code still scans even if the email
-    // client compresses/resizes the embedded image.
-    const qrDataUrl = await QRCode.toDataURL(ticket.ticketCode, { errorCorrectionLevel: "H", width: 400, margin: 2 });
-    const User = require("../models/User");
     const user = await User.findById(ticket.user);
-    await sendTicketConfirmationEmail(user.email, {
+
+    // Guard #1: the recipient email itself must be a valid, complete address.
+    if (!user || !isValidEmail(user.email)) {
+      ticket.emailStatus = "failed";
+      ticket.emailError = "Recipient email is missing or invalid";
+      await ticket.save();
+      console.error(`[email] ticket ${ticket.ticketCode}: invalid/missing recipient email`);
+      return;
+    }
+
+    // QR encodes ticketCode + a signature, so a manager's check-in scan can be
+    // verified as genuinely issued by us, not just a guessed/typo'd code.
+    const qrDataUrl = await QRCode.toDataURL(buildQrPayload(ticket.ticketCode), {
+      errorCorrectionLevel: "H",
+      margin: 1,
+      width: 320,
+    });
+
+    const payload = {
+      to: user.email,
       eventTitle: event.title,
       tierName: ticket.tierName,
       ticketCode: ticket.ticketCode,
       venue: event.venue,
       startsAt: event.startsAt,
       qrDataUrl,
-    });
+    };
+
+    // Guard #2: every field the email template needs must be present and well-formed
+    // before we attempt to send - never mail out a half-complete confirmation.
+    if (!ticketEmailPayloadIsComplete(payload)) {
+      ticket.emailStatus = "failed";
+      ticket.emailError = "Ticket/event data was incomplete, email withheld";
+      await ticket.save();
+      console.error(`[email] ticket ${ticket.ticketCode}: incomplete payload, email withheld`);
+      return;
+    }
+
+    await sendTicketConfirmationEmail(payload.to, payload);
+    ticket.emailStatus = "sent";
+    ticket.emailSentAt = new Date();
+    ticket.emailError = "";
+    await ticket.save();
   } catch (err) {
     console.error("[email] ticket confirmation failed:", err.message);
+    try {
+      ticket.emailStatus = "failed";
+      ticket.emailError = err.message?.slice(0, 300) || "Unknown error";
+      await ticket.save();
+    } catch (_) {
+      /* ignore secondary failure */
+    }
   }
 }
+
+// Admin/manager action: retry sending a ticket's confirmation email, e.g.
+// after the user fixes a typo'd address or a transient SMTP failure.
+exports.resendTicketEmail = async (req, res) => {
+  const ticket = await Ticket.findById(req.params.id);
+  if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+  if (req.admin.role === "manager" && String(ticket.event) !== String(req.admin.managedEvent)) {
+    return res.status(403).json({ message: "You can only manage tickets for your assigned event" });
+  }
+  const event = await Event.findById(ticket.event);
+  await deliverTicketEmail(ticket, event);
+  await logActivity(req, "resent_ticket_email", { ticketCode: ticket.ticketCode, status: ticket.emailStatus });
+  res.json({ message: ticket.emailStatus === "sent" ? "Email sent" : "Email could not be sent", ticket });
+};
 
 // Safaricom calls this URL after the customer completes (or cancels) the STK prompt.
 exports.mpesaCallback = async (req, res) => {
@@ -157,7 +222,8 @@ exports.myTickets = async (req, res) => {
 // ---- Admin ----
 
 exports.adminListTickets = async (req, res) => {
-  const tickets = await Ticket.find()
+  const filter = eventScopeFilter(req.admin);
+  const tickets = await Ticket.find(filter)
     .populate("user", "name email phone")
     .populate("event", "title startsAt")
     .sort({ createdAt: -1 })
@@ -165,10 +231,26 @@ exports.adminListTickets = async (req, res) => {
   res.json({ tickets });
 };
 
+// Managers can only validate QR/ticket codes for the single event assigned to them.
 exports.checkIn = async (req, res) => {
   const { ticketCode } = req.body;
-  const ticket = await Ticket.findOne({ ticketCode });
+  if (!ticketCode) return res.status(400).json({ message: "Ticket or QR code is required" });
+
+  // Accept either a raw ticket code (typed in manually) or the signed QR
+  // payload "CODE.SIGNATURE" produced by the emailed QR - reject a payload
+  // whose signature doesn't match (tampered / forged code).
+  const resolvedCode = verifyQrPayload(ticketCode.trim());
+  if (resolvedCode === null) {
+    return res.status(400).json({ message: "This QR code failed verification and cannot be trusted" });
+  }
+
+  const ticket = await Ticket.findOne({ ticketCode: resolvedCode });
   if (!ticket) return res.status(404).json({ message: "No ticket found with that code" });
+
+  if (req.admin.role === "manager" && String(ticket.event) !== String(req.admin.managedEvent)) {
+    return res.status(403).json({ message: "This ticket belongs to a different event than the one you manage" });
+  }
+
   if (ticket.status === "checked_in") return res.status(400).json({ message: "Ticket already checked in", ticket });
   if (ticket.status !== "confirmed") return res.status(400).json({ message: `Ticket is ${ticket.status}, cannot check in`, ticket });
 
@@ -176,38 +258,16 @@ exports.checkIn = async (req, res) => {
   ticket.checkedInAt = new Date();
   ticket.checkedInBy = req.admin._id;
   await ticket.save();
-  await logActivity(req, "checked_in_ticket", { ticketCode });
+  await logActivity(req, "checked_in_ticket", { ticketCode: resolvedCode });
   res.json({ message: "Checked in", ticket });
-};
-
-// Used by the /#/manage/:token event-manager page - scoped so this link can only
-// check in tickets that belong to its own event, never any other event.
-exports.checkInByManagerToken = async (req, res) => {
-  const { ticketCode } = req.body;
-  const event = await Event.findOne({ managerToken: req.params.token });
-  if (!event) return res.status(404).json({ message: "Invalid or expired manager link" });
-
-  const ticket = await Ticket.findOne({ ticketCode, event: event._id });
-  if (!ticket) return res.status(404).json({ message: "No ticket for this event with that code" });
-  if (ticket.status === "checked_in") return res.status(400).json({ message: "Ticket already checked in", ticket });
-  if (ticket.status !== "confirmed") return res.status(400).json({ message: `Ticket is ${ticket.status}, cannot check in`, ticket });
-
-  ticket.status = "checked_in";
-  ticket.checkedInAt = new Date();
-  await ticket.save();
-  res.json({ message: "Checked in", ticket });
-};
-
-exports.managerEventTickets = async (req, res) => {
-  const event = await Event.findOne({ managerToken: req.params.token });
-  if (!event) return res.status(404).json({ message: "Invalid or expired manager link" });
-  const tickets = await Ticket.find({ event: event._id }).populate("user", "name email phone").sort({ createdAt: -1 });
-  res.json({ tickets });
 };
 
 exports.refund = async (req, res) => {
   const ticket = await Ticket.findById(req.params.id);
   if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+  if (req.admin.role === "manager" && String(ticket.event) !== String(req.admin.managedEvent)) {
+    return res.status(403).json({ message: "You can only manage tickets for your assigned event" });
+  }
   ticket.status = "refunded";
   await ticket.save();
   await logActivity(req, "refunded_ticket", { ticketId: ticket._id, ticketCode: ticket.ticketCode });

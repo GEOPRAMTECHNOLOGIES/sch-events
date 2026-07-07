@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
-import TicketStub from "../components/TicketStub";
 import { useSiteSettings } from "../context/SiteSettingsContext";
+import TicketStub from "../components/TicketStub";
 
 export default function Home() {
-  const settings = useSiteSettings();
+  const { settings } = useSiteSettings();
   const [events, setEvents] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -19,13 +19,19 @@ export default function Home() {
 
   return (
     <div>
-      <section style={{ background: "var(--ink)", color: "var(--paper)", padding: "64px 0" }}>
+      <section
+        style={{
+          background: "linear-gradient(135deg, var(--brand-dark), var(--brand))",
+          color: "#fff",
+          padding: "64px 0",
+        }}
+      >
         <div className="container">
           <span className="pill pill-gold">{events.length || 0} events open right now</span>
           <h1 style={{ fontFamily: "var(--font-display)", fontSize: "clamp(32px,5vw,52px)", margin: "16px 0 12px", maxWidth: 640 }}>
             {settings.heroTitle}
           </h1>
-          <p style={{ color: "#c7cee0", maxWidth: 520, fontSize: 16 }}>{settings.heroSubtitle}</p>
+          <p style={{ color: "#dff2ea", maxWidth: 520, fontSize: 16 }}>{settings.heroSubtitle}</p>
           <div style={{ marginTop: 28, maxWidth: 420 }}>
             <input
               placeholder="Search events, e.g. 'Freshers Night'"
@@ -43,9 +49,9 @@ export default function Home() {
         ) : events.length === 0 ? (
           <p style={{ color: "var(--ink-soft)" }}>No events match right now. Check back soon.</p>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 20 }}>
+          <div className="grid-responsive">
             {events.map((ev) => (
-              <Link key={ev._id} to={`/events/${ev._id}`}>
+              <Link key={ev._id} to={`/event/${ev.slug || ev._id}`}>
                 <TicketStub
                   event={ev}
                   rightSlot={

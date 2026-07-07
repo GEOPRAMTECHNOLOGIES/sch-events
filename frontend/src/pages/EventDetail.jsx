@@ -25,9 +25,11 @@ export default function EventDetail() {
 
   if (!event) return <div className="container" style={{ padding: 40 }}>Loading&hellip;</div>;
 
+  // An event can override the app's brand color with its own theme color.
+  const themeVars = event.themeColor ? { "--brand": event.themeColor } : undefined;
+  const gallery = event.images?.length ? event.images : event.coverImageUrl ? [event.coverImageUrl] : [];
+
   const tier = event.tiers.find((t) => t._id === tierId);
-  // Per-event accent color override, e.g. a club/sponsor's own brand color for this one event.
-  const accent = event.themeColor || undefined;
 
   async function handleBook(e) {
     e.preventDefault();
@@ -62,44 +64,46 @@ export default function EventDetail() {
   }
 
   return (
-    <div className="container two-col" style={{ padding: "40px 24px" }}>
+    <div
+      className="container event-detail-grid"
+      style={{ padding: "40px 24px", display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 32, ...themeVars }}
+    >
       <div>
-        <span className="pill pill-muted">{event.category}</span>
+        {gallery.length > 0 && (
+          <div className={gallery.length > 1 ? "responsive-gallery" : ""} style={{ marginBottom: 20 }}>
+            {gallery.length === 1 ? (
+              <img
+                src={gallery[0]}
+                alt={event.title}
+                style={{ width: "100%", maxHeight: 340, objectFit: "cover", borderRadius: 12 }}
+              />
+            ) : (
+              gallery.map((src, i) => <img key={i} src={src} alt={`${event.title} ${i + 1}`} />)
+            )}
+          </div>
+        )}
+
+        <span className="pill pill-brand">{event.category}</span>
         <h1 style={{ fontFamily: "var(--font-display)", fontSize: 32, margin: "12px 0" }}>{event.title}</h1>
         <p style={{ color: "var(--ink-soft)" }}>
           {dayjs(event.startsAt).format("dddd, D MMMM YYYY \u00b7 HH:mm")} &middot; {event.venue}
         </p>
         <p style={{ lineHeight: 1.6, marginTop: 16 }}>{event.description}</p>
 
-        {event.images?.length > 0 && (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-              gap: 10,
-              marginTop: 20,
-            }}
-          >
-            {event.images.map((src, i) => (
-              <img
-                key={i}
-                src={src}
-                alt={`${event.title} ${i + 1}`}
-                style={{ width: "100%", aspectRatio: "4 / 3", objectFit: "cover", borderRadius: 8, border: "1px solid var(--stub-line)" }}
-                loading="lazy"
-              />
-            ))}
-          </div>
-        )}
-
         {event.externalLink && (
-          <a href={event.externalLink} target="_blank" rel="noreferrer" className="btn btn-ghost" style={{ marginTop: 20 }}>
-            More info &rarr;
+          <a
+            href={event.externalLink}
+            target="_blank"
+            rel="noreferrer"
+            className="btn btn-ghost"
+            style={{ marginTop: 8, display: "inline-flex" }}
+          >
+            More details &#8599;
           </a>
         )}
       </div>
 
-      <div className="card" style={{ padding: 24, height: "fit-content", borderTop: accent ? `4px solid ${accent}` : undefined }}>
+      <div className="card" style={{ padding: 24, height: "fit-content" }}>
         <h3 style={{ marginTop: 0, fontFamily: "var(--font-display)", fontSize: 16 }}>Get your ticket</h3>
 
         <div className="field">

@@ -1,8 +1,9 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
+import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { ADMIN_ROUTE_SLUG } from "../api/client";
 import { useAdminAuth } from "../context/AdminAuthContext";
 
-const NAV = [
+const FULL_NAV = [
   { to: "", label: "Overview", icon: "\u25A3" },
   { to: "analytics", label: "Analytics & graphs", icon: "\u25B2" },
   { to: "users", label: "Users", icon: "\u25CF" },
@@ -17,14 +18,32 @@ const NAV = [
   { to: "admins", label: "Admins", icon: "\u26AD" },
 ];
 
+// Event managers only get the two things they actually need: their event's
+// details, and the check-in / QR-validation tool for it.
+const MANAGER_NAV = [
+  { to: "events", label: "My event", icon: "\u2691" },
+  { to: "check-in", label: "Check-in", icon: "\u2713" },
+];
+
 export default function AdminLayout() {
   const { admin, logout } = useAdminAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const base = `/${ADMIN_ROUTE_SLUG}`;
+  const NAV = admin?.role === "manager" ? MANAGER_NAV : FULL_NAV;
+
+  useEffect(() => {
+    if (admin?.role === "manager" && location.pathname.replace(/\/$/, "") === base) {
+      navigate(`${base}/events`, { replace: true });
+    }
+  }, [admin, location.pathname]);
 
   return (
-    <div className="admin-shell">
-      <aside className="admin-sidebar">
+    <div className="admin-shell" style={{ display: "flex", minHeight: "100vh", background: "#f4f2ea" }}>
+      <aside
+        className="admin-sidebar"
+        style={{ width: 230, background: "var(--ink)", color: "#dfe4f2", padding: "20px 14px", position: "sticky", top: 0, height: "100vh" }}
+      >
         <div style={{ padding: "6px 10px 20px" }}>
           <div style={{ fontFamily: "var(--font-display)", color: "var(--gold)", fontSize: 16 }}>CampusPass</div>
           <div style={{ fontSize: 11, color: "#8d96b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>admin console</div>
@@ -70,7 +89,7 @@ export default function AdminLayout() {
         </div>
       </aside>
 
-      <main className="admin-main">
+      <main style={{ flex: 1, padding: 28, overflow: "auto" }}>
         <Outlet />
       </main>
     </div>

@@ -107,36 +107,7 @@ Safaricom will not deliver callbacks to plain HTTP or self-signed endpoints.
 
 ---
 
-## 6. What's new: images, links, themes, event managers, transaction tools
-
-**Event extras** (Events tab): each event can now have a gallery of image URLs (paste links from
-Imgur/Cloudinary/Drive/etc — there's no file upload pipeline wired up, just URL fields), an optional
-external link button, and an optional per-event accent color.
-
-**Editable site text & theme** (Settings tab): site name, homepage headline/subtitle, footer text, and
-the three theme colors (ink/gold/paper) are now editable from the dashboard and apply instantly to the
-public site — no redeploy needed. A few one-click presets are included, including a green-and-gold
-"DeKUT-inspired" option (tweak the exact shades yourself if you want a closer match — we don't have
-DeKUT's official brand hex codes on hand).
-
-**Event managers** (Events tab → "Get link"): generates a private, unauthenticated link
-(`/#/manage/<token>`) scoped to one event. Whoever holds that link can view that event's ticket
-counts and check tickets in — they can't see any other event, and there's no separate login to manage.
-Treat the link itself as the credential; regenerating it invalidates the old one.
-
-**Transactions** (Transactions tab, and a preview on Overview): filterable by status, event, date range,
-phone/receipt search, and min/max amount (7 filters total). A "Delete old failed (14d+)" button
-bulk-removes non-successful transactions older than two weeks — successful ones are never touched.
-
-**Stale-event reminder**: once an event is more than 30 days past its end date, a banner appears on
-Overview and Events suggesting cleanup. Nothing is deleted automatically — it's a nudge, not an
-automatic sweep.
-
-**More reliable ticket emails**: QR codes are now generated at higher resolution and error-correction,
-and the email always shows the ticket code as readable text too, so check-in still works even if the
-QR image doesn't render in someone's inbox.
-
-## 7. What's inside
+## 6. What's inside
 
 ```
 backend/
@@ -158,7 +129,7 @@ frontend/
 
 ---
 
-## 8. Security notes
+## 7. Security notes
 
 - Admin passwords are bcrypt-hashed in MongoDB — never stored in plaintext.
 - User and admin sessions use **separate** JWT secrets, so one can never impersonate the other.
