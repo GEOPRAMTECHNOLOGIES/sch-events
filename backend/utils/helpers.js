@@ -14,47 +14,27 @@ function generateTicketCode() {
   return `CP-${Date.now().toString(36).toUpperCase()}-${rand}`;
 }
 
-// Reasonably strict, standard-shape email check. Used to gate ticket-email
-// sending so we never fire off a QR ticket to a malformed/incomplete address.
+// Turns an event title into a URL-safe slug, e.g. "Freshers' Night 2026!" -> "freshers-night-2026"
+function slugify(text) {
+  return String(text)
+    .toLowerCase()
+    .trim()
+    .replace(/['"]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || "event";
+}
+
+// Strict-ish email check: proper local@domain.tld shape, no spaces, no consecutive dots.
+// Used so we don't send tickets to addresses that are mistyped/incomplete.
+const EMAIL_RE = /^(?!.*\.\.)[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,}$/;
+
 function isValidEmail(email) {
   if (!email || typeof email !== "string") return false;
   const trimmed = email.trim();
-  const re = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-  return re.test(trimmed);
-}
-
-// Builds a short, tamper-evident signature for the ticket QR payload so a
-// manager's scanner/check-in flow can confirm the code was issued by us
-// (not just guessed) before trusting it.
-function signTicketPayload(ticketCode) {
-  const secret = process.env.JWT_SECRET || "campuspass-fallback-secret";
-  return crypto.createHmac("sha256", secret).update(ticketCode).digest("hex").slice(0, 12);
-}
-
-function buildQrPayload(ticketCode) {
-  return `${ticketCode}.${signTicketPayload(ticketCode)}`;
-}
-
-function verifyQrPayload(payload) {
-  if (!payload || typeof payload !== "string") return null;
-  const [code, sig] = payload.split(".");
-  if (!code || !sig) return payload; // plain old-style code, let caller look it up directly
-  return sig === signTicketPayload(code) ? code : null;
-}
-
-// Confirms every field the ticket email needs is present and well-formed,
-// so we never send a half-finished / broken confirmation email.
-function ticketEmailPayloadIsComplete({ to, eventTitle, tierName, ticketCode, venue, startsAt, qrDataUrl }) {
-  return Boolean(
-    isValidEmail(to) &&
-      eventTitle &&
-      tierName &&
-      ticketCode &&
-      venue &&
-      startsAt &&
-      qrDataUrl &&
-      qrDataUrl.startsWith("data:image")
-  );
+  if (trimmed !== email) return false; // no leading/trailing whitespace
+  if (trimmed.length > 254) return false;
+  return EMAIL_RE.test(trimmed);
 }
 
 function signUserToken(user) {
@@ -75,8 +55,6 @@ module.exports = {
   generateTicketCode,
   signUserToken,
   signAdminToken,
+  slugify,
   isValidEmail,
-  buildQrPayload,
-  verifyQrPayload,
-  ticketEmailPayloadIsComplete,
 };

@@ -10,6 +10,5 @@ router.post("/login", loginLimiter, ctrl.login);
 router.get("/me", requireAdmin, ctrl.me);
 router.get("/admins", requireAdmin, requireRole("superadmin"), ctrl.listAdmins);
 router.post("/admins", requireAdmin, requireRole("superadmin"), ctrl.createAdmin);
-router.patch("/admins/:id/managed-event", requireAdmin, requireRole("superadmin"), ctrl.setManagedEvent);
 
 module.exports = router;

@@ -1,34 +1,28 @@
 const mongoose = require("mongoose");
 
-// Singleton document (there is always exactly one). Lets admins edit the
-// homepage copy and the app-wide color theme without touching code.
+// Singleton document (there is only ever one) so admins can edit the site's
+// public-facing copy and color theme without touching code.
 const siteSettingsSchema = new mongoose.Schema(
   {
-    key: { type: String, default: "singleton", unique: true },
-
     siteName: { type: String, default: "CampusPass" },
     heroTitle: { type: String, default: "Your ticket to what's on campus." },
     heroSubtitle: {
       type: String,
-      default:
-        "Book, pay with M-Pesa, and get your QR ticket straight to your inbox \u2014 no queueing at the gate.",
+      default: "Book, pay with M-Pesa, and get your QR ticket straight to your inbox — no queueing at the gate.",
     },
-    footerText: { type: String, default: "CampusPass \u2014 campus events, one tap away." },
-
-    // Theme colors. DeKUT green is the default primary/brand color.
-    primaryColor: { type: String, default: "#0B6E4F" }, // DeKUT green
-    primaryColorDark: { type: String, default: "#084F39" },
-    accentColor: { type: String, default: "#F2C14E" }, // gold ticket-stub accent
-    inkColor: { type: String, default: "#1B2A4A" },
-
+    footerText: { type: String, default: "campus events, one tap away." },
+    // Colors - default to a DeKUT-inspired palette (deep university green + gold).
+    primaryColor: { type: String, default: "#0B4F2C" },
+    accentColor: { type: String, default: "#F2B705" },
+    paperColor: { type: String, default: "#FBF7EE" },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
   },
   { timestamps: true }
 );
 
 siteSettingsSchema.statics.getSingleton = async function () {
-  let doc = await this.findOne({ key: "singleton" });
-  if (!doc) doc = await this.create({ key: "singleton" });
+  let doc = await this.findOne();
+  if (!doc) doc = await this.create({});
   return doc;
 };
 
