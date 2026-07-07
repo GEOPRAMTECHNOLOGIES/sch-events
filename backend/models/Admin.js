@@ -7,8 +7,8 @@ const adminSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true },
     role: { type: String, enum: ["superadmin", "manager", "support"], default: "manager" },
-    // For role === "manager": the single event this account is allowed to see/validate tickets for.
-    linkedEvent: { type: mongoose.Schema.Types.ObjectId, ref: "Event", default: null },
+    // When role === "manager", this is the single event they're allowed to view/manage & check-in tickets for.
+    managedEvent: { type: mongoose.Schema.Types.ObjectId, ref: "Event", default: null },
     isActive: { type: Boolean, default: true },
     lastLoginAt: { type: Date },
     lastLoginIp: { type: String },

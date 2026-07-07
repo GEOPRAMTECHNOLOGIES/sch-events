@@ -1,24 +1,11 @@
 const Admin = require("../models/Admin");
-const Event = require("../models/Event");
-const { signAdminToken, isValidEmail } = require("../utils/helpers");
+const { signAdminToken } = require("../utils/helpers");
 const logActivity = require("../middleware/logActivity");
-
-function toSafeAdmin(admin) {
-  return {
-    id: admin._id,
-    name: admin.name,
-    email: admin.email,
-    role: admin.role,
-    linkedEvent: admin.linkedEvent
-      ? { id: admin.linkedEvent._id || admin.linkedEvent, title: admin.linkedEvent.title, slug: admin.linkedEvent.slug }
-      : null,
-  };
-}
 
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
-    const admin = await Admin.findOne({ email: (email || "").toLowerCase() }).populate("linkedEvent", "title slug");
+    const admin = await Admin.findOne({ email: (email || "").toLowerCase() });
     if (!admin) return res.status(401).json({ message: "Invalid credentials" });
 
     const valid = await admin.comparePassword(password || "");
@@ -33,7 +20,10 @@ exports.login = async (req, res) => {
     req.admin = admin;
     await logActivity(req, "admin_login", {});
 
-    res.json({ token, admin: toSafeAdmin(admin) });
+    res.json({
+      token,
+      admin: { id: admin._id, name: admin.name, email: admin.email, role: admin.role, managedEvent: admin.managedEvent },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Could not log in" });
@@ -41,48 +31,37 @@ exports.login = async (req, res) => {
 };
 
 exports.me = async (req, res) => {
-  const admin = await Admin.findById(req.admin._id).populate("linkedEvent", "title slug");
-  res.json({ admin: toSafeAdmin(admin) });
+  res.json({
+    admin: {
+      id: req.admin._id,
+      name: req.admin.name,
+      email: req.admin.email,
+      role: req.admin.role,
+      managedEvent: req.admin.managedEvent,
+    },
+  });
 };
 
-// Superadmins can create more admin accounts here (shows in the "Admins" tab of the dashboard).
-// When role === "manager", pass linkedEvent so that account only ever sees/validates
-// tickets for that one event.
+// Superadmins can create more admin accounts here (shows in the "Admins" tab of the dashboard)
 exports.createAdmin = async (req, res) => {
   try {
-    const { name, email, password, role, linkedEvent } = req.body;
-    if (!isValidEmail(email)) {
-      return res.status(400).json({ message: "Please enter a complete, correctly formatted email address" });
-    }
+    const { name, email, password, role, managedEventId } = req.body;
     const existing = await Admin.findOne({ email: (email || "").toLowerCase() });
     if (existing) return res.status(409).json({ message: "An admin with this email already exists" });
-
-    const finalRole = role || "manager";
-    let eventDoc = null;
-    if (finalRole === "manager") {
-      if (!linkedEvent) return res.status(400).json({ message: "Pick which event this manager is linked to" });
-      eventDoc = await Event.findById(linkedEvent);
-      if (!eventDoc) return res.status(404).json({ message: "That event doesn't exist" });
-    }
 
     const admin = new Admin({
       name,
       email: email.toLowerCase(),
-      role: finalRole,
-      linkedEvent: finalRole === "manager" ? linkedEvent : null,
+      role: role || "manager",
+      // Managers are linked to exactly one event - the one they'll view/validate tickets for.
+      managedEvent: role === "manager" && managedEventId ? managedEventId : null,
     });
     await admin.setPassword(password);
     await admin.save();
-
-    if (eventDoc) {
-      eventDoc.manager = admin._id;
-      await eventDoc.save();
-    }
-
-    await logActivity(req, "created_admin", { newAdminEmail: admin.email, role: finalRole });
+    await logActivity(req, "created_admin", { newAdminEmail: admin.email, managedEventId: admin.managedEvent });
     res.status(201).json({
       message: "Admin created",
-      admin: { id: admin._id, name, email, role: admin.role, linkedEvent: eventDoc ? { id: eventDoc._id, title: eventDoc.title, slug: eventDoc.slug } : null },
+      admin: { id: admin._id, name, email, role: admin.role, managedEvent: admin.managedEvent },
     });
   } catch (err) {
     res.status(400).json({ message: "Could not create admin", detail: err.message });
@@ -90,6 +69,18 @@ exports.createAdmin = async (req, res) => {
 };
 
 exports.listAdmins = async (req, res) => {
-  const admins = await Admin.find().select("-passwordHash").populate("linkedEvent", "title slug").sort({ createdAt: -1 });
+  const admins = await Admin.find().select("-passwordHash").populate("managedEvent", "title slug").sort({ createdAt: -1 });
   res.json({ admins });
+};
+
+// Superadmin re-assigns which event a manager is linked to.
+exports.setManagedEvent = async (req, res) => {
+  const { managedEventId } = req.body;
+  const admin = await Admin.findById(req.params.id);
+  if (!admin) return res.status(404).json({ message: "Admin not found" });
+  if (admin.role !== "manager") return res.status(400).json({ message: "Only managers can be linked to an event" });
+  admin.managedEvent = managedEventId || null;
+  await admin.save();
+  await logActivity(req, "set_managed_event", { adminId: admin._id, managedEventId });
+  res.json({ message: "Manager's linked event updated", admin: { id: admin._id, managedEvent: admin.managedEvent } });
 };

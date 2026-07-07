@@ -1,32 +1,35 @@
-@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Archivo+Black&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
 
 :root {
-  /* ---- CampusPass token system v2: "digital boarding pass" for a Kenyan campus ---- */
-  --forest: #0b4f2c;      /* deep DeKUT green - dark surfaces, headline text */
-  --canopy: #12813f;      /* mid green - gradients, hover states */
-  --spark: #f2b705;       /* gold - primary CTA, the "go" color */
-  --spark-deep: #d69e00;
-  --gold: #f2b705;        /* alias for older components */
-  --gold-deep: #d69e00;
-  --ink: #0b4f2c;         /* kept as an alias so existing components still read a sane color */
-  --ink-soft: #4b6156;
-  --cloud: #f5f7f2;       /* cool, modern neutral background (not warm paper cream) */
-  --paper: #f5f7f2;       /* alias for older components */
-  --paper-dim: #eaefe6;
-  --mist: #dfe6db;        /* card borders / dividers */
-  --stub-line: #dfe6db;   /* alias */
-  --stamp: #c0392b;
-  --success: #1f8b4c;
+  /* ---- CampusPass token system: physical paper ticket, not a "tech dashboard" ---- */
+  /* --brand is the app's #1 color - DeKUT green by default. It's overridable at
+     runtime (see ThemeContext) from the admin's Settings page, and per-event
+     pages can further override it with that event's own themeColor. */
+  --brand: #0b6e4f;        /* DeKUT green - primary brand color */
+  --brand-dark: #084f39;
+  --brand-soft: #e4f3ec;
 
-  --font-display: "Space Grotesk", "Inter", sans-serif;
-  --font-body: "Inter", -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", monospace;
+  --ink: #1b2a4a;       /* deep navy - headers, primary text */
+  --ink-soft: #445074;
+  --paper: #fbf7ee;     /* warm cream paper background */
+  --paper-dim: #f2ecdb;
+  --stub-line: #d8cfb0; /* perforation / hairline color */
+  --gold: #f2c14e;      /* ticket-stub accent */
+  --gold-deep: #d9a520;
+  --stamp: #c0392b;     /* used sparingly: sold-out stamps, destructive actions */
+  --success: #2f9461;
 
-  --radius: 16px;
-  --radius-lg: 22px;
-  --shadow-card: 0 1px 2px rgba(11, 79, 44, 0.06), 0 16px 32px -20px rgba(11, 79, 44, 0.35);
-  --shadow-pop: 0 8px 24px -8px rgba(11, 79, 44, 0.45);
-  --gradient-brand: linear-gradient(135deg, var(--forest) 0%, var(--canopy) 55%, #0d6b38 100%);
+  /* extra colorful accents, used sparingly across pills/badges/highlights */
+  --sky: #2f7ec7;
+  --coral: #e8674a;
+  --violet: #7a5cd6;
+
+  --font-display: "Archivo Black", "Work Sans", sans-serif;
+  --font-body: "Work Sans", -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+
+  --radius: 10px;
+  --shadow-card: 0 2px 0 var(--stub-line), 0 12px 24px -16px rgba(27, 42, 74, 0.35);
 }
 
 * { box-sizing: border-box; }
@@ -35,8 +38,8 @@ html, body, #root { height: 100%; }
 
 body {
   margin: 0;
-  background: var(--cloud);
-  color: #14201a;
+  background: var(--paper);
+  color: var(--ink);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
 }
@@ -49,12 +52,8 @@ button {
 }
 
 :focus-visible {
-  outline: 3px solid var(--spark-deep);
+  outline: 3px solid var(--gold-deep);
   outline-offset: 2px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
 
 .container {
@@ -70,64 +69,64 @@ button {
   gap: 8px;
   border: none;
   border-radius: 999px;
-  padding: 12px 24px;
+  padding: 12px 22px;
   font-weight: 700;
   font-size: 14px;
-  font-family: var(--font-body);
-  transition: transform 0.14s ease, box-shadow 0.14s ease, opacity 0.14s ease;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
-.btn:active { transform: translateY(1px) scale(0.99); }
+.btn:active { transform: translateY(1px); }
 
 .btn-primary {
-  background: var(--gradient-brand);
-  color: #fff;
-  box-shadow: 0 6px 16px -8px rgba(11, 79, 44, 0.6);
+  background: var(--ink);
+  color: var(--gold);
 }
-.btn-primary:hover { box-shadow: 0 10px 22px -8px rgba(11, 79, 44, 0.65); transform: translateY(-1px); }
+.btn-primary:hover { box-shadow: 0 6px 16px -6px rgba(27,42,74,0.5); }
 
 .btn-gold {
-  background: var(--spark);
-  color: #1c1503;
-  box-shadow: 0 6px 16px -8px rgba(242, 183, 5, 0.55);
+  background: var(--gold);
+  color: var(--ink);
 }
-.btn-gold:hover { box-shadow: 0 10px 22px -8px rgba(242, 183, 5, 0.6); transform: translateY(-1px); }
+.btn-gold:hover { box-shadow: 0 6px 16px -6px rgba(242,193,78,0.6); }
 
 .btn-ghost {
-  background: #fff;
-  color: var(--forest);
-  border: 1.5px solid var(--mist);
+  background: transparent;
+  color: var(--ink);
+  border: 1.5px solid var(--stub-line);
 }
-.btn-ghost:hover { border-color: var(--canopy); }
 
 .btn-danger {
   background: var(--stamp);
   color: #fff;
 }
 
-.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+.btn-brand {
+  background: var(--brand);
+  color: #fff;
+}
+.btn-brand:hover { box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--brand) 60%, transparent); }
+
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
 input, select, textarea {
   font-family: var(--font-body);
   font-size: 14px;
   padding: 11px 14px;
-  border-radius: 12px;
-  border: 1.5px solid var(--mist);
+  border-radius: 8px;
+  border: 1.5px solid var(--stub-line);
   background: #fff;
-  color: #14201a;
+  color: var(--ink);
   width: 100%;
-  transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 input:focus, select:focus, textarea:focus {
-  border-color: var(--canopy);
+  border-color: var(--gold-deep);
   outline: none;
-  box-shadow: 0 0 0 4px rgba(18, 129, 63, 0.12);
 }
 
 label {
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.06em;
   color: var(--ink-soft);
   display: block;
   margin-bottom: 6px;
@@ -139,85 +138,91 @@ label {
   background: #fff;
   border-radius: var(--radius);
   box-shadow: var(--shadow-card);
-  border: 1px solid var(--mist);
 }
 
 .mono { font-family: var(--font-mono); }
 
 .pill {
   display: inline-block;
-  padding: 5px 12px;
+  padding: 4px 10px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
 }
-.pill-gold { background: var(--spark); color: #1c1503; }
-.pill-success { background: #e2f5e9; color: var(--success); }
+.pill-gold { background: var(--gold); color: var(--ink); }
+.pill-brand { background: var(--brand-soft); color: var(--brand-dark); }
+.pill-success { background: #e3f3ea; color: var(--success); }
 .pill-danger { background: #fbe6e3; color: var(--stamp); }
 .pill-muted { background: var(--paper-dim); color: var(--ink-soft); }
+.pill-sky { background: #e5f0fa; color: var(--sky); }
+.pill-violet { background: #ece7fb; color: var(--violet); }
+
+/* Responsive helpers used across public + admin pages */
+.grid-responsive {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.responsive-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+.responsive-gallery img {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
+}
+
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+.filters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.hamburger {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 22px;
+  color: var(--ink);
+}
+
+@media (max-width: 780px) {
+  .container { padding: 0 16px; }
+
+  .nav-desktop { display: none !important; }
+  .hamburger { display: inline-flex; }
+
+  .admin-shell { flex-direction: column; }
+  .admin-sidebar {
+    width: 100% !important;
+    height: auto !important;
+    position: relative !important;
+  }
+  .admin-sidebar nav {
+    flex-direction: row !important;
+    flex-wrap: wrap;
+  }
+
+  .event-detail-grid { grid-template-columns: 1fr !important; }
+}
 
 .error-text { color: var(--stamp); font-size: 13px; margin-top: 6px; }
 .help-text { color: var(--ink-soft); font-size: 13px; margin-top: 6px; }
 
-/* ---- Signature element: the digital boarding-pass ticket card ---- */
-.ticket-card {
-  position: relative;
-  background: #fff;
-  border-radius: var(--radius-lg);
-  overflow: visible;
-  box-shadow: var(--shadow-card);
-  border: 1px solid var(--mist);
-  transition: transform 0.16s ease, box-shadow 0.16s ease;
-}
-.ticket-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-pop); }
-
-.ticket-card__media {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
-  display: block;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-}
-
-.ticket-card__body { padding: 18px 20px; }
-
-/* the tear-away seam between event details and the stub, with punched notches */
-.ticket-card__seam {
-  position: relative;
-  margin: 14px -20px 0;
-  border-top: 2px dashed var(--mist);
-}
-.ticket-card__seam::before,
-.ticket-card__seam::after {
-  content: "";
-  position: absolute;
-  top: -10px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--cloud);
-  border: 1px solid var(--mist);
-}
-.ticket-card__seam::before { left: -10px; }
-.ticket-card__seam::after { right: -10px; }
-
-.ticket-card__stub {
-  padding: 14px 20px 18px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-@media (max-width: 640px) {
-  .ticket-card__seam::before, .ticket-card__seam::after { display: none; }
-}
-
-/* legacy alias kept so older inline usages don't break */
+/* perforated divider - the signature ticket-stub motif, reused across cards */
 .perforation {
   position: relative;
-  border-top: 2px dashed var(--mist);
+  border-top: 2px dashed var(--stub-line);
   margin: 16px 0;
 }
 .perforation::before, .perforation::after {
@@ -227,29 +232,11 @@ label {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--cloud);
+  background: var(--paper);
 }
 .perforation::before { left: -33px; }
 .perforation::after { right: -33px; }
 
 @media (max-width: 640px) {
   .perforation::before, .perforation::after { display: none; }
-}
-
-/* ---- Responsiveness for small screens ---- */
-@media (max-width: 860px) {
-  div[style*="grid-template-columns: 1.4fr 1fr"] {
-    grid-template-columns: 1fr !important;
-  }
-  .admin-shell { flex-direction: column; }
-  .admin-sidebar {
-    width: 100% !important;
-    height: auto !important;
-    position: relative !important;
-  }
-}
-
-@media (max-width: 520px) {
-  .container { padding: 0 16px; }
-  h1 { font-size: 26px !important; }
 }

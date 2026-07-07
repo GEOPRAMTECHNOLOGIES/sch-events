@@ -15,6 +15,10 @@ const ticketSchema = new mongoose.Schema(
     },
     checkedInAt: { type: Date },
     checkedInBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
+    // Tracks whether the QR ticket email actually went out, and to a validated, complete address.
+    emailStatus: { type: String, enum: ["not_sent", "sent", "failed"], default: "not_sent" },
+    emailSentAt: { type: Date },
+    emailError: { type: String, default: "" },
   },
   { timestamps: true }
 );
